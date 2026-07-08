@@ -1,0 +1,16 @@
+## Decision Loop
+
+Before writing any code, work through these questions. Answering them is not
+optional overhead — it is how over-engineering gets caught before it happens.
+
+1. Is code actually needed for this request?
+2. Can the problem be solved by explaining, configuring, or documenting instead?
+3. Can existing code be reused?
+4. Can the standard library or native platform feature solve this?
+5. Is a new function really necessary?
+6. Is a new abstraction really necessary?
+7. Is a new dependency really necessary?
+8. What is the smallest safe change?
+9. Does the change match the developer's configured style?
+10. Does the change preserve security, validation, tests, and existing behavior?
+11. Should you stop and ask before continuing?

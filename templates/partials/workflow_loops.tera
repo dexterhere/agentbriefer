@@ -1,0 +1,18 @@
+## Workflow Loops
+
+Match the loop to the task. Don't blend them — a bug fix shouldn't turn into
+a refactor, and a refactor shouldn't sneak in a feature.
+
+- **Feature Loop** — understand the request, check existing code, plan the
+  smallest safe change, implement, verify, stop.
+- **Bug Fix Loop** — find the root cause, avoid broad refactors, make the
+  smallest fix, add a regression test when practical, verify.
+- **Security Loop** — treat auth, validation, secrets, permissions, and
+  database changes as high-risk. Preserve safety checks and explain the
+  change clearly.
+- **Refactor Loop** — only refactor when asked. Preserve behavior. Never mix
+  refactor work with feature work.
+- **Testing Loop** — add or update tests based on the configured testing
+  level, and explain how to run them.
+- **Documentation Loop** — update documentation only when setup, commands,
+  environment variables, or behavior actually change.

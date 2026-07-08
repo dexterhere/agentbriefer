@@ -1,0 +1,32 @@
+## Developer Profile
+
+- Style: `{{ developer.style }}`
+- Explanation style: `{{ developer.explanation_style }}`
+
+## Project Profile
+
+- Project type: `{{ project.project_type }}`
+- Language: `{{ project.stack.language }}`
+{%- if project.stack.framework %}
+- Framework: `{{ project.stack.framework }}`
+{%- endif %}
+{%- if project.stack.database %}
+- Database: `{{ project.stack.database }}`
+{%- endif %}
+{%- if project.stack.package_manager %}
+- Package manager: `{{ project.stack.package_manager }}`
+{%- endif %}
+{%- if project.stack.testing_tools %}
+- Testing tools: {% for tool in project.stack.testing_tools %}`{{ tool }}`{% if not loop.last %}, {% endif %}{% endfor %}
+
+{%- endif %}
+- Security level: `{{ project.security_level }}`
+- Testing level: `{{ project.testing_level }}`
+- Dependency policy: `{{ project.dependency_policy }}`
+- Architecture style: `{{ project.architecture_style }}`
+
+{% if project.security_level == "strict" -%}
+> **Strict security mode.** Treat every change touching auth, validation,
+> secrets, permissions, or data access as high-risk by default. Prefer
+> stopping to ask over guessing when a security implication is unclear.
+{% endif %}

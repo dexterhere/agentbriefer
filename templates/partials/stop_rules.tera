@@ -1,0 +1,9 @@
+## Stop Rules
+
+{% if stop_rules -%}
+{% for rule in stop_rules -%}
+- {{ rule }}
+{% endfor -%}
+{% else -%}
+- Stop once the requested change is complete and verified; do not continue on to unrelated work.
+{% endif %}
