@@ -1,6 +1,7 @@
 //! Data model for `skillforge.yaml`.
 
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumIter};
 
 /// Root configuration for a project, as read from `skillforge.yaml`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -54,8 +55,9 @@ pub struct Stack {
     pub package_manager: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumIter)]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
 pub enum DeveloperStyle {
     Minimal,
     Practical,
@@ -64,8 +66,9 @@ pub enum DeveloperStyle {
     SecurityFirst,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumIter)]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
 pub enum ExplanationStyle {
     Short,
     BeginnerFriendly,
@@ -73,8 +76,9 @@ pub enum ExplanationStyle {
     TradeoffBased,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumIter)]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
 pub enum ProjectType {
     BackendApi,
     FrontendApp,
@@ -84,32 +88,36 @@ pub enum ProjectType {
     DocumentationHeavy,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumIter)]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
 pub enum SecurityLevel {
     Basic,
     Standard,
     Strict,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumIter)]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
 pub enum TestingLevel {
     Light,
     Practical,
     Strict,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumIter)]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
 pub enum DependencyPolicy {
     Allow,
     ExplainFirst,
     AskFirst,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumIter)]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
 pub enum ArchitectureStyle {
     Simple,
     SimpleLayered,
@@ -118,8 +126,9 @@ pub enum ArchitectureStyle {
 }
 
 /// An AI-agent instruction file format SkillForge can generate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumIter)]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
 pub enum OutputFormat {
     ClaudeMd,
     AgentsMd,
