@@ -3,14 +3,17 @@
 use std::fs;
 use std::path::Path;
 
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+
 use super::error::ConfigError;
-use super::schema::SkillforgeConfig;
 
 /// Conventional file name for a project's SkillForge configuration.
 pub const CONFIG_FILE_NAME: &str = "skillforge.yaml";
 
-/// Loads a [`SkillforgeConfig`] from the given YAML file.
-pub fn load(path: &Path) -> Result<SkillforgeConfig, ConfigError> {
+/// Loads any YAML-serializable value (a [`super::SkillforgeConfig`] or a
+/// [`super::DeveloperProfile`]) from the given file.
+pub fn load<T: DeserializeOwned>(path: &Path) -> Result<T, ConfigError> {
     let contents = fs::read_to_string(path).map_err(|source| ConfigError::Read {
         path: path.to_path_buf(),
         source,
@@ -22,10 +25,10 @@ pub fn load(path: &Path) -> Result<SkillforgeConfig, ConfigError> {
     })
 }
 
-/// Serializes a [`SkillforgeConfig`] as YAML and writes it to the given path,
-/// creating or overwriting the file.
-pub fn save(config: &SkillforgeConfig, path: &Path) -> Result<(), ConfigError> {
-    let yaml = serde_yaml::to_string(config).map_err(ConfigError::Serialize)?;
+/// Serializes any YAML-serializable value as YAML and writes it to the
+/// given path, creating or overwriting the file.
+pub fn save<T: Serialize>(value: &T, path: &Path) -> Result<(), ConfigError> {
+    let yaml = serde_yaml::to_string(value).map_err(ConfigError::Serialize)?;
 
     fs::write(path, yaml).map_err(|source| ConfigError::Write {
         path: path.to_path_buf(),
@@ -38,7 +41,8 @@ mod tests {
     use super::*;
     use crate::config::schema::{
         ArchitectureStyle, DependencyPolicy, DeveloperProfile, DeveloperStyle, ExplanationStyle,
-        OutputFormat, ProjectProfile, ProjectType, SecurityLevel, Stack, TestingLevel,
+        OutputFormat, ProjectProfile, ProjectType, SecurityLevel, SkillforgeConfig, Stack,
+        TestingLevel,
     };
 
     fn sample_config() -> SkillforgeConfig {
@@ -84,7 +88,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("does-not-exist.yaml");
 
-        let err = load(&path).unwrap_err();
+        let err = load::<SkillforgeConfig>(&path).unwrap_err();
 
         assert!(matches!(err, ConfigError::Read { .. }));
     }
@@ -95,7 +99,7 @@ mod tests {
         let path = dir.path().join(CONFIG_FILE_NAME);
         fs::write(&path, "not: [valid, skillforge, config").unwrap();
 
-        let err = load(&path).unwrap_err();
+        let err = load::<SkillforgeConfig>(&path).unwrap_err();
 
         assert!(matches!(err, ConfigError::Parse { .. }));
     }
