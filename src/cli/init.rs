@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use dialoguer::{Confirm, Input, MultiSelect, Select};
 use strum::IntoEnumIterator;
 
+use super::prompt::select_enum;
 use crate::config::{
     self, DeveloperProfile, OutputFormat, ProjectProfile, SkillforgeConfig, Stack,
 };
@@ -31,10 +32,7 @@ pub fn run() -> Result<()> {
 
     println!("Let's configure SkillForge for this project.\n");
 
-    let developer = DeveloperProfile {
-        style: select_enum("Developer style")?,
-        explanation_style: select_enum("Explanation style")?,
-    };
+    let (developer, extends) = pick_developer_profile()?;
 
     let language: String = Input::new()
         .with_prompt("Primary language")
@@ -63,10 +61,8 @@ pub fn run() -> Result<()> {
     let stop_rules = collect_stop_rules()?;
     let outputs = select_outputs()?;
 
-    // Reusable developer profiles (`extends`) are wired up once `skillforge
-    // profile` exists; every config is self-contained for now.
     let config = SkillforgeConfig {
-        extends: None,
+        extends,
         developer,
         project,
         stop_rules,
@@ -84,23 +80,43 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-/// Prompts the user to pick one variant of an enum that lists all of its
-/// values via `strum`'s `IntoEnumIterator`, displaying each with its `Display`
-/// impl (the same kebab-case string that gets written to YAML).
-fn select_enum<T>(prompt: &str) -> Result<T>
-where
-    T: IntoEnumIterator + std::fmt::Display + Copy,
-{
-    let variants: Vec<T> = T::iter().collect();
-    let labels: Vec<String> = variants.iter().map(ToString::to_string).collect();
+/// Asks whether to pre-fill the developer profile from a saved one (see
+/// `skillforge profile create`), or answer the two questions now. Returns
+/// the resulting profile and the saved profile's name, if one was used.
+fn pick_developer_profile() -> Result<(DeveloperProfile, Option<String>)> {
+    let dir = super::profile::profiles_dir()?;
+    let names = super::profile::list_profile_names(&dir)?;
+
+    if names.is_empty() {
+        return Ok((ask_developer_profile()?, None));
+    }
+
+    let mut options = vec!["Set up manually".to_string()];
+    options.extend(names.iter().cloned());
 
     let index = Select::new()
-        .with_prompt(prompt)
-        .items(&labels)
+        .with_prompt("Use a saved developer profile?")
+        .items(&options)
         .default(0)
         .interact()?;
 
-    Ok(variants[index])
+    if index == 0 {
+        Ok((ask_developer_profile()?, None))
+    } else {
+        let name = &names[index - 1];
+        Ok((
+            super::profile::load_profile(&dir, name)?,
+            Some(name.clone()),
+        ))
+    }
+}
+
+/// Asks the two developer-profile questions directly.
+fn ask_developer_profile() -> Result<DeveloperProfile> {
+    Ok(DeveloperProfile {
+        style: select_enum("Developer style")?,
+        explanation_style: select_enum("Explanation style")?,
+    })
 }
 
 /// Prompts for a value that may be left blank, returning `None` in that case.
