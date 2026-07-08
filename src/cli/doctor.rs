@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 
 use super::generate::output_path;
 use super::sync::{find_managed_block, managed_block, split_frontmatter};
+use super::ui;
 use crate::config::{self, DependencyPolicy, SecurityLevel, SkillforgeConfig, TestingLevel};
 use crate::render::Renderer;
 
@@ -35,10 +36,10 @@ pub fn run() -> Result<()> {
     let report = doctor(&root, &config, &renderer)?;
 
     if report.findings.is_empty() {
-        println!("No issues found.");
+        ui::success("No issues found.");
     } else {
         for finding in &report.findings {
-            println!("- {finding}");
+            ui::warn(&format!("- {finding}"));
         }
     }
 

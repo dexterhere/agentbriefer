@@ -15,6 +15,7 @@ use anyhow::{Context, Result};
 
 use super::generate::OutputReport;
 use super::generate::output_path;
+use super::ui;
 use crate::config::{self, SkillforgeConfig};
 use crate::render::Renderer;
 
@@ -38,10 +39,10 @@ pub fn run() -> Result<()> {
     let report = sync(&root, &config, &renderer)?;
 
     for (format, path) in &report.succeeded {
-        println!("synced {format} -> {}", path.display());
+        ui::success(&format!("synced {format} -> {}", path.display()));
     }
     for (format, reason) in &report.failed {
-        println!("skipped {format}: {reason}");
+        ui::warn(&format!("skipped {format}: {reason}"));
     }
 
     Ok(())
@@ -86,10 +87,10 @@ fn write_merged(path: &Path, rendered: &str) -> Result<()> {
                 format!("{}{block}{}", &existing[..start], &existing[end..])
             }
             None => {
-                println!(
+                ui::warn(&format!(
                     "no managed block found in {} — replacing its contents with a fresh one",
                     path.display()
-                );
+                ));
                 format!("{frontmatter}{block}")
             }
         },

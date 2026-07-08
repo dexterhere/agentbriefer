@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
+use super::ui;
 use crate::config::{self, OutputFormat, SkillforgeConfig};
 use crate::render::Renderer;
 
@@ -34,10 +35,10 @@ pub fn run() -> Result<()> {
     let report = generate(&root, &config, &renderer)?;
 
     for (format, path) in &report.succeeded {
-        println!("generated {format} -> {}", path.display());
+        ui::success(&format!("generated {format} -> {}", path.display()));
     }
     for (format, reason) in &report.failed {
-        println!("skipped {format}: {reason}");
+        ui::warn(&format!("skipped {format}: {reason}"));
     }
 
     Ok(())

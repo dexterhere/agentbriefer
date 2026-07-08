@@ -6,6 +6,7 @@ mod init;
 mod profile;
 mod prompt;
 mod sync;
+mod ui;
 
 pub use doctor::run as run_doctor;
 pub use generate::run as run_generate;
