@@ -115,30 +115,74 @@ mod tests {
         }
     }
 
+    /// All four formats share the same partials, so they share the same
+    /// content-presence guarantees: config values, the conditional strict
+    /// security note, both loop partials, and the configured stop rule.
     #[test]
-    fn renders_claude_md_with_config_values_and_partials() {
+    fn every_format_renders_config_values_and_shared_partials() {
         let renderer = Renderer::new().unwrap();
         let config = sample_config();
 
-        let output = renderer
+        for format in OutputFormat::all() {
+            let output = renderer.render_output(format, &config).unwrap();
+
+            assert!(
+                output.contains("`practical`"),
+                "{format} missing developer style"
+            );
+            assert!(output.contains("`rust`"), "{format} missing language");
+            assert!(
+                output.contains("`cargo`"),
+                "{format} missing package manager"
+            );
+            assert!(
+                output.contains("cargo-test"),
+                "{format} missing testing tools"
+            );
+            assert!(
+                output.contains("Strict security mode"),
+                "{format} missing strict security note"
+            );
+            assert!(
+                output.contains("## Decision Loop"),
+                "{format} missing decision loop partial"
+            );
+            assert!(
+                output.contains("## Workflow Loops"),
+                "{format} missing workflow loops partial"
+            );
+            assert!(
+                output.contains("Stop before modifying CI/CD configuration"),
+                "{format} missing configured stop rule"
+            );
+        }
+    }
+
+    #[test]
+    fn each_format_has_its_own_header() {
+        let renderer = Renderer::new().unwrap();
+        let config = sample_config();
+
+        let claude = renderer
             .render_output(OutputFormat::ClaudeMd, &config)
             .unwrap();
+        assert!(claude.starts_with("# CLAUDE.md"));
 
-        // Config values made it into the rendered output.
-        assert!(output.contains("`practical`"));
-        assert!(output.contains("`rust`"));
-        assert!(output.contains("`cargo`"));
-        assert!(output.contains("cargo-test"));
+        let agents = renderer
+            .render_output(OutputFormat::AgentsMd, &config)
+            .unwrap();
+        assert!(agents.starts_with("# AGENTS.md"));
 
-        // The `strict` security level triggers its conditional block.
-        assert!(output.contains("Strict security mode"));
+        let cursor = renderer
+            .render_output(OutputFormat::CursorRules, &config)
+            .unwrap();
+        assert!(cursor.starts_with("---\n"));
+        assert!(cursor.contains("alwaysApply: true"));
 
-        // Both partials were included.
-        assert!(output.contains("## Decision Loop"));
-        assert!(output.contains("## Workflow Loops"));
-
-        // Configured stop rule is present.
-        assert!(output.contains("Stop before modifying CI/CD configuration"));
+        let copilot = renderer
+            .render_output(OutputFormat::CopilotInstructions, &config)
+            .unwrap();
+        assert!(copilot.starts_with("# GitHub Copilot Instructions"));
     }
 
     #[test]
@@ -161,6 +205,42 @@ mod tests {
 
         let output = renderer
             .render_output(OutputFormat::ClaudeMd, &config)
+            .unwrap();
+
+        insta::assert_snapshot!(output);
+    }
+
+    #[test]
+    fn snapshot_of_rendered_agents_md() {
+        let renderer = Renderer::new().unwrap();
+        let config = sample_config();
+
+        let output = renderer
+            .render_output(OutputFormat::AgentsMd, &config)
+            .unwrap();
+
+        insta::assert_snapshot!(output);
+    }
+
+    #[test]
+    fn snapshot_of_rendered_cursor_rules() {
+        let renderer = Renderer::new().unwrap();
+        let config = sample_config();
+
+        let output = renderer
+            .render_output(OutputFormat::CursorRules, &config)
+            .unwrap();
+
+        insta::assert_snapshot!(output);
+    }
+
+    #[test]
+    fn snapshot_of_rendered_copilot_instructions() {
+        let renderer = Renderer::new().unwrap();
+        let config = sample_config();
+
+        let output = renderer
+            .render_output(OutputFormat::CopilotInstructions, &config)
             .unwrap();
 
         insta::assert_snapshot!(output);

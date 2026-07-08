@@ -28,6 +28,7 @@ expression: output
 > secrets, permissions, or data access as high-risk by default. Prefer
 > stopping to ask over guessing when a security implication is unclear.
 
+
 ## Decision Loop
 
 Before writing any code, work through these questions. Answering them is not
