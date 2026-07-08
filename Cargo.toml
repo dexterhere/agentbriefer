@@ -4,9 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+rust-embed = "8.12.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_yaml = "0.9.34"
+tera = "2.0.0"
 thiserror = "2.0.18"
 
 [dev-dependencies]
+insta = "1.48.0"
 tempfile = "3.27.0"

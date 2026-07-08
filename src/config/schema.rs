@@ -137,6 +137,16 @@ impl OutputFormat {
             OutputFormat::CopilotInstructions,
         ]
     }
+
+    /// Name of the Tera template (under `templates/`) that renders this format.
+    pub fn template_name(self) -> &'static str {
+        match self {
+            OutputFormat::ClaudeMd => "claude.md.tera",
+            OutputFormat::AgentsMd => "agents.md.tera",
+            OutputFormat::CursorRules => "cursor_rules.tera",
+            OutputFormat::CopilotInstructions => "copilot_instructions.tera",
+        }
+    }
 }
 
 #[cfg(test)]
