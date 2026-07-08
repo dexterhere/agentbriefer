@@ -9,10 +9,10 @@ use anyhow::{Context, Result};
 use crate::config::{self, OutputFormat, SkillforgeConfig};
 use crate::render::Renderer;
 
-/// Outcome of a `generate` pass: which formats rendered successfully, and
-/// which didn't (with a human-readable reason).
+/// Outcome of a `generate` or `sync` pass: which formats were written
+/// successfully, and which didn't (with a human-readable reason).
 #[derive(Debug, Default)]
-pub struct GenerateReport {
+pub struct OutputReport {
     pub succeeded: Vec<(OutputFormat, PathBuf)>,
     pub failed: Vec<(OutputFormat, String)>,
 }
@@ -47,8 +47,8 @@ pub fn run() -> Result<()> {
 ///
 /// Kept separate from [`run`] so it can be exercised in tests against a
 /// temporary directory instead of the real current working directory.
-fn generate(root: &Path, config: &SkillforgeConfig, renderer: &Renderer) -> Result<GenerateReport> {
-    let mut report = GenerateReport::default();
+fn generate(root: &Path, config: &SkillforgeConfig, renderer: &Renderer) -> Result<OutputReport> {
+    let mut report = OutputReport::default();
 
     for &format in &config.outputs {
         match renderer.render_output(format, config) {
@@ -74,7 +74,7 @@ fn generate(root: &Path, config: &SkillforgeConfig, renderer: &Renderer) -> Resu
 
 /// Where each output format is written, relative to the project root.
 /// These are the actual paths Cursor and GitHub Copilot read from.
-fn output_path(format: OutputFormat) -> PathBuf {
+pub(super) fn output_path(format: OutputFormat) -> PathBuf {
     match format {
         OutputFormat::ClaudeMd => PathBuf::from("CLAUDE.md"),
         OutputFormat::AgentsMd => PathBuf::from("AGENTS.md"),
