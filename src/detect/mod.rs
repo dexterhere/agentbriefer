@@ -82,9 +82,15 @@ pub(super) fn find_file_with_extension(root: &Path, extension: &str) -> Option<P
 }
 
 /// Shared helper: given the full set of detected dependency names and
-/// lookup lists for framework/testing/database crates, picks the first
+/// lookup lists for framework/testing/database crates, picks the
 /// framework/database match, collects all testing matches, and returns the
 /// remaining names (capped, alphabetically sorted) as `key_dependencies`.
+///
+/// Framework/database are picked by walking `frameworks`/`databases` in
+/// *their own* order, not the alphabetized dependency list — so a lookup
+/// list can express priority (e.g. Dart's list puts `flutter` first so it
+/// wins over a state-management library like `bloc` that's also a listed
+/// framework and would otherwise win purely by alphabetical luck).
 pub(super) fn categorize(
     mut dependency_names: Vec<String>,
     frameworks: &[&str],
@@ -93,8 +99,14 @@ pub(super) fn categorize(
 ) -> (Option<String>, Option<String>, Vec<String>, Vec<String>) {
     dependency_names.sort();
 
-    let framework = dependency_names.iter().find(|name| frameworks.contains(&name.as_str())).cloned();
-    let database = dependency_names.iter().find(|name| databases.contains(&name.as_str())).cloned();
+    let framework = frameworks
+        .iter()
+        .find(|name| dependency_names.iter().any(|dep| dep == *name))
+        .map(|name| name.to_string());
+    let database = databases
+        .iter()
+        .find(|name| dependency_names.iter().any(|dep| dep == *name))
+        .map(|name| name.to_string());
     let testing_tools: Vec<String> = dependency_names
         .iter()
         .filter(|name| testing.contains(&name.as_str()))
@@ -134,6 +146,19 @@ mod tests {
         assert_eq!(database, Some("sqlx".to_string()));
         assert_eq!(testing_tools, vec!["insta".to_string()]);
         assert_eq!(key_dependencies, vec!["serde".to_string()]);
+    }
+
+    #[test]
+    fn categorize_prefers_frameworks_list_order_over_alphabetical_dependency_order() {
+        // "bloc" sorts before "flutter" alphabetically, but a lookup list
+        // that lists "flutter" first should still win — this is the exact
+        // shape of a real Flutter + bloc project.
+        let deps = vec!["bloc".to_string(), "flutter".to_string()];
+
+        let (framework, _, _, key_dependencies) = categorize(deps, &["flutter", "bloc"], &[], &[]);
+
+        assert_eq!(framework, Some("flutter".to_string()));
+        assert_eq!(key_dependencies, vec!["bloc".to_string()]);
     }
 
     #[test]
