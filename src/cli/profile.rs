@@ -176,6 +176,22 @@ mod tests {
     }
 
     #[test]
+    fn profile_path_cannot_escape_the_profiles_dir_via_a_dot_dot_name() {
+        // ".." has no '/' or '\\', so it isn't rejected by the separator
+        // check above -- but since it's used as a single path *component*
+        // (`dir.join(format!("{name}.yaml"))`), a bare ".." can never
+        // resolve to a parent directory anyway; it just becomes the
+        // harmless literal filename "...yaml". Locking that in explicitly
+        // rather than leaving it as an implicit, untested assumption.
+        let dir = tempfile::tempdir().unwrap();
+
+        let path = profile_path(dir.path(), "..").unwrap();
+
+        assert_eq!(path.parent(), Some(dir.path()));
+        assert_eq!(path.file_name().unwrap(), "...yaml");
+    }
+
+    #[test]
     fn profile_path_accepts_a_simple_name() {
         let dir = tempfile::tempdir().unwrap();
 

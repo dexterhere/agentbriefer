@@ -34,10 +34,14 @@ pub(super) fn detect(root: &Path) -> Option<DetectedStack> {
     })
 }
 
-/// Extracts every module path named in a `require (...)` block or a
-/// single-line `require modpath version` statement. Trailing
-/// `// indirect` comments are dropped naturally, since only the first
-/// whitespace-separated token (the module path) is kept.
+/// Extracts every *direct* module path named in a `require (...)` block or
+/// a single-line `require modpath version` statement. Lines carrying a
+/// trailing `// indirect` comment are skipped entirely — `go mod tidy`
+/// marks every transitive dependency this way (typically as its own
+/// second `require (...)` block), and treating those as if the project
+/// depended on them directly floods `key_dependencies`/`framework`/
+/// `database` with whatever a direct dependency happens to pull in
+/// transitively, not what the project actually uses.
 fn parse_required_modules(contents: &str) -> Vec<String> {
     let mut modules = Vec::new();
     let mut in_require_block = false;
@@ -53,13 +57,16 @@ fn parse_required_modules(contents: &str) -> Vec<String> {
         if in_require_block {
             if line == ")" {
                 in_require_block = false;
-            } else if let Some(module) = line.split_whitespace().next() {
+            } else if !is_indirect(line)
+                && let Some(module) = line.split_whitespace().next()
+            {
                 modules.push(module.to_string());
             }
             continue;
         }
 
         if let Some(rest) = line.strip_prefix("require ")
+            && !is_indirect(line)
             && let Some(module) = rest.split_whitespace().next()
         {
             modules.push(module.to_string());
@@ -67,6 +74,12 @@ fn parse_required_modules(contents: &str) -> Vec<String> {
     }
 
     modules
+}
+
+/// Whether a `require` line carries the toolchain-generated `// indirect`
+/// marker for a transitive dependency.
+fn is_indirect(line: &str) -> bool {
+    line.contains("// indirect")
 }
 
 /// Reduces a full module path (e.g. `github.com/gin-gonic/gin` or
@@ -119,7 +132,48 @@ require (
         assert_eq!(detected.framework.as_deref(), Some("gin"));
         assert_eq!(detected.database.as_deref(), Some("pgx"));
         assert_eq!(detected.testing_tools, vec!["testify".to_string()]);
-        assert_eq!(detected.key_dependencies, vec!["errors".to_string()]);
+        // Regression: an `// indirect` (transitive) dependency must not
+        // show up in key_dependencies as if the project depended on it
+        // directly.
+        assert!(detected.key_dependencies.is_empty());
+    }
+
+    #[test]
+    fn excludes_every_module_in_a_separate_indirect_require_block() {
+        // The shape `go mod tidy` actually produces: direct dependencies in
+        // one `require (...)` block, every transitive dependency they pull
+        // in listed in a second, separately-marked block. This is exactly
+        // what a real `gin`+`testify` project's go.mod looks like, and it's
+        // what first exposed this bug via dogfooding.
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("go.mod"),
+            r#"
+module example.com/myapp
+
+go 1.21
+
+require (
+	github.com/gin-gonic/gin v1.9.1
+	github.com/stretchr/testify v1.8.4
+)
+
+require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
+)
+"#,
+        )
+        .unwrap();
+
+        let detected = detect(dir.path()).unwrap();
+
+        assert_eq!(detected.framework.as_deref(), Some("gin"));
+        assert_eq!(detected.testing_tools, vec!["testify".to_string()]);
+        // mongo-driver is only present as a transitive dependency here --
+        // it must not be surfaced as the project's database.
+        assert_eq!(detected.database, None);
+        assert!(detected.key_dependencies.is_empty());
     }
 
     #[test]
