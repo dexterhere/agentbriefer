@@ -9,20 +9,31 @@
 //! erroring, so a malformed or unreadable manifest just means "nothing
 //! detected" instead of failing `init` outright.
 
+mod clojure;
+mod cpp;
 mod crystal;
 mod csharp;
 mod dart;
+mod elixir;
+mod erlang;
 mod formats;
 mod fsharp;
 mod go;
+mod gradle_jvm;
 mod haskell;
 mod java;
 mod julia;
+mod lua;
 mod node;
+mod objective_c;
+mod perl;
 mod php;
 mod python;
 mod r;
+mod ruby;
 mod rust;
+mod scala;
+mod swift;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -66,6 +77,17 @@ pub fn detect(root: &Path) -> DetectedStack {
         .or_else(|| crystal::detect(root))
         .or_else(|| haskell::detect(root))
         .or_else(|| r::detect(root))
+        .or_else(|| ruby::detect(root))
+        .or_else(|| swift::detect(root))
+        .or_else(|| scala::detect(root))
+        .or_else(|| gradle_jvm::detect(root))
+        .or_else(|| cpp::detect(root))
+        .or_else(|| elixir::detect(root))
+        .or_else(|| clojure::detect(root))
+        .or_else(|| erlang::detect(root))
+        .or_else(|| objective_c::detect(root))
+        .or_else(|| lua::detect(root))
+        .or_else(|| perl::detect(root))
         .unwrap_or_default()
 }
 
