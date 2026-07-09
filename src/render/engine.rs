@@ -104,6 +104,7 @@ mod tests {
                     database: None,
                     testing_tools: vec!["cargo-test".to_string(), "insta".to_string()],
                     package_manager: Some("cargo".to_string()),
+                    key_dependencies: vec!["serde".to_string(), "tokio".to_string()],
                 },
                 security_level: SecurityLevel::Strict,
                 testing_level: TestingLevel::Practical,
@@ -138,6 +139,10 @@ mod tests {
             assert!(
                 output.contains("cargo-test"),
                 "{format} missing testing tools"
+            );
+            assert!(
+                output.contains("`serde`"),
+                "{format} missing key dependencies"
             );
             assert!(
                 output.contains("Strict security mode"),

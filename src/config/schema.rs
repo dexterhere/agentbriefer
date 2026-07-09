@@ -53,6 +53,12 @@ pub struct Stack {
     pub testing_tools: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package_manager: Option<String>,
+    /// Key direct dependencies detected from the project's manifest (e.g.
+    /// `Cargo.toml`), excluding whatever is already captured by
+    /// `framework`/`database`/`testing_tools`. A snapshot from whenever
+    /// `init` last ran — not kept in sync automatically.
+    #[serde(default)]
+    pub key_dependencies: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumIter)]
@@ -177,6 +183,7 @@ mod tests {
                     database: None,
                     testing_tools: vec!["cargo-test".to_string()],
                     package_manager: Some("cargo".to_string()),
+                    key_dependencies: vec![],
                 },
                 security_level: SecurityLevel::Standard,
                 testing_level: TestingLevel::Practical,

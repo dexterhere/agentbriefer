@@ -104,10 +104,10 @@ pub fn run_create() -> Result<()> {
     ui::hint(
         "Defines your working style and preferences — makes the agent's behavior personal, not generic.",
     );
-    let style = select_enum("Developer style")?;
+    let style = select_enum("Developer style", None)?;
 
     ui::hint("How much detail/reasoning the agent should include when explaining what it did.");
-    let explanation_style = select_enum("Explanation style")?;
+    let explanation_style = select_enum("Explanation style", None)?;
 
     let profile = DeveloperProfile {
         style,

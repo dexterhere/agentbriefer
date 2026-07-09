@@ -20,6 +20,10 @@
 - Testing tools: {% for tool in project.stack.testing_tools %}`{{ tool }}`{% if not loop.last %}, {% endif %}{% endfor %}
 
 {%- endif %}
+{%- if project.stack.key_dependencies %}
+- Key dependencies: {% for dep in project.stack.key_dependencies %}`{{ dep }}`{% if not loop.last %}, {% endif %}{% endfor %}
+
+{%- endif %}
 - Security level: `{{ project.security_level }}`
 - Testing level: `{{ project.testing_level }}`
 - Dependency policy: `{{ project.dependency_policy }}`

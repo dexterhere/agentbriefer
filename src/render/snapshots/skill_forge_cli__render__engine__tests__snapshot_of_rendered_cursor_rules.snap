@@ -23,6 +23,7 @@ alwaysApply: true
 - Language: `rust`
 - Package manager: `cargo`
 - Testing tools: `cargo-test`, `insta`
+- Key dependencies: `serde`, `tokio`
 - Security level: `strict`
 - Testing level: `practical`
 - Dependency policy: `explain-first`

@@ -162,6 +162,7 @@ mod tests {
                     database: None,
                     testing_tools: vec![],
                     package_manager: Some("cargo".to_string()),
+                    key_dependencies: vec![],
                 },
                 security_level: SecurityLevel::Standard,
                 testing_level: TestingLevel::Practical,
