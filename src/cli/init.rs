@@ -2,7 +2,7 @@
 //! `skillforge.yaml`.
 
 use anyhow::{Context, Result};
-use dialoguer::{Confirm, Input, MultiSelect, Select};
+use dialoguer::{Confirm, Editor, Input, MultiSelect, Select};
 use strum::IntoEnumIterator;
 
 use super::prompt::select_enum;
@@ -51,6 +51,12 @@ pub fn run() -> Result<()> {
     ui::hint("Specific situations where the agent must stop and ask before continuing.");
     let stop_rules = collect_stop_rules()?;
 
+    ui::hint(
+        "Freeform, project-specific guidance beyond the settings above — a quirky build step, \
+         a library with surprising behavior, a convention unique to this codebase.",
+    );
+    let custom_instructions = ask_custom_instructions(None)?;
+
     ui::hint("Which instruction files `skillforge generate`/`sync` should produce.");
     let outputs = select_outputs()?;
 
@@ -59,6 +65,7 @@ pub fn run() -> Result<()> {
         developer,
         project,
         stop_rules,
+        custom_instructions,
         outputs,
     };
 
@@ -222,8 +229,12 @@ fn review_and_edit(config: &mut SkillforgeConfig) -> Result<()> {
                     Some(config.project.architecture_style),
                 )?
             }
-            14 => config.stop_rules = collect_stop_rules()?,
-            15 => config.outputs = select_outputs()?,
+            14 => {
+                config.custom_instructions =
+                    ask_custom_instructions(config.custom_instructions.as_deref())?
+            }
+            15 => config.stop_rules = collect_stop_rules()?,
+            16 => config.outputs = select_outputs()?,
             _ => unreachable!("menu_items and this match must stay in sync"),
         }
     }
@@ -274,6 +285,14 @@ fn menu_items(config: &SkillforgeConfig) -> Vec<String> {
         format!("Testing level: {}", config.project.testing_level),
         format!("Dependency policy: {}", config.project.dependency_policy),
         format!("Architecture style: {}", config.project.architecture_style),
+        format!(
+            "Custom instructions: {}",
+            if config.custom_instructions.is_some() {
+                "set"
+            } else {
+                "(none)"
+            }
+        ),
         format!("Stop rules: {} configured", config.stop_rules.len()),
         format!("Output formats: {} selected", config.outputs.len()),
     ]
@@ -359,6 +378,44 @@ fn comma_separated_input(prompt: &str, initial: Option<&str>) -> Result<Vec<Stri
         .collect())
 }
 
+/// Optionally opens the user's editor (`$VISUAL`/`$EDITOR`, falling back to
+/// `vi`/`notepad.exe`) to collect freeform, project-specific guidance.
+/// `current`, if given, pre-fills the editor buffer with the existing text,
+/// so re-editing from the review menu starts from what's already there
+/// rather than blank. Aborting the editor (closing without saving) keeps
+/// whatever was already set — it must not silently wipe existing content.
+fn ask_custom_instructions(current: Option<&str>) -> Result<Option<String>> {
+    let prompt = if current.is_some() {
+        "Edit custom instructions?"
+    } else {
+        "Add custom instructions for this project?"
+    };
+
+    if !Confirm::with_theme(&ui::theme())
+        .with_prompt(prompt)
+        .default(false)
+        .interact()?
+    {
+        return Ok(current.map(str::to_string));
+    }
+
+    let edited = Editor::new()
+        .edit(current.unwrap_or(""))
+        .context("failed to open an editor")?;
+
+    Ok(match edited {
+        Some(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        None => current.map(str::to_string),
+    })
+}
+
 /// Repeatedly prompts for stop rules until the user declines to add another.
 fn collect_stop_rules() -> Result<Vec<String>> {
     let mut rules = Vec::new();
@@ -434,6 +491,7 @@ mod tests {
                 architecture_style: ArchitectureStyle::Simple,
             },
             stop_rules: vec![],
+            custom_instructions: None,
             outputs: vec![OutputFormat::ClaudeMd],
         }
     }
@@ -442,7 +500,7 @@ mod tests {
     fn menu_items_has_one_entry_per_field_plus_save() {
         let items = menu_items(&sample_config());
 
-        assert_eq!(items.len(), 16);
+        assert_eq!(items.len(), 17);
         assert_eq!(items[0], "Save and finish");
     }
 
@@ -455,6 +513,11 @@ mod tests {
         assert!(items.iter().any(|item| item == "Package manager: (none)"));
         assert!(items.iter().any(|item| item == "Testing tools: (none)"));
         assert!(items.iter().any(|item| item == "Key dependencies: (none)"));
+        assert!(
+            items
+                .iter()
+                .any(|item| item == "Custom instructions: (none)")
+        );
     }
 
     #[test]
@@ -464,6 +527,7 @@ mod tests {
         config.project.stack.testing_tools = vec!["cargo-test".to_string(), "insta".to_string()];
         config.project.stack.key_dependencies = vec!["serde".to_string(), "tokio".to_string()];
         config.stop_rules = vec!["Stop before touching CI".to_string()];
+        config.custom_instructions = Some("Never touch the legacy billing module.".to_string());
 
         let items = menu_items(&config);
 
@@ -478,6 +542,7 @@ mod tests {
                 .iter()
                 .any(|item| item == "Key dependencies: serde, tokio")
         );
+        assert!(items.iter().any(|item| item == "Custom instructions: set"));
         assert!(items.iter().any(|item| item == "Stop rules: 1 configured"));
         assert!(
             items

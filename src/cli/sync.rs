@@ -192,6 +192,7 @@ mod tests {
                 architecture_style: ArchitectureStyle::Simple,
             },
             stop_rules: vec![],
+            custom_instructions: None,
             outputs: OutputFormat::all(),
         }
     }

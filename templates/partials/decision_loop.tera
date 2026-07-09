@@ -11,6 +11,6 @@ optional overhead — it is how over-engineering gets caught before it happens.
 6. Is a new abstraction really necessary?
 7. Is a new dependency really necessary?
 8. What is the smallest safe change?
-9. Does the change match the developer's configured style?
+9. Does the change and its explanation match the developer's configured style?
 10. Does the change preserve security, validation, tests, and existing behavior?
 11. Should you stop and ask before continuing?
