@@ -1,5 +1,7 @@
 # SkillForge CLI
 
+[![CI](https://github.com/dexterhere/skillforge/actions/workflows/ci.yml/badge.svg)](https://github.com/dexterhere/skillforge/actions/workflows/ci.yml)
+
 Configure how AI coding agents think, code, test, and stop inside your project.
 
 SkillForge CLI is a command-line tool for configuring AI coding-agent behavior
