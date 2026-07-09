@@ -9,11 +9,23 @@
 //! erroring, so a malformed or unreadable manifest just means "nothing
 //! detected" instead of failing `init` outright.
 
+mod crystal;
+mod csharp;
+mod dart;
+mod formats;
+mod fsharp;
 mod go;
+mod haskell;
+mod java;
+mod julia;
 mod node;
+mod php;
+mod python;
+mod r;
 mod rust;
 
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Maximum number of raw dependency names kept in `key_dependencies`,
 /// so a project with hundreds of packages doesn't flood the generated
@@ -34,14 +46,39 @@ pub struct DetectedStack {
     pub source: Option<String>,
 }
 
-/// Detects a project's stack by trying, in order, Rust, then Node, then
-/// Go. Returns the first non-empty result, or `DetectedStack::default()`
-/// if none of them find anything.
+/// Detects a project's stack by trying each language's detector in turn,
+/// returning the first non-empty result, or `DetectedStack::default()` if
+/// none of them find anything. Order mostly doesn't matter — each detector
+/// keys on a distinct manifest filename, so collisions only happen in
+/// unusual polyglot repos, where first-match-wins is an accepted tradeoff
+/// (every detected value is just an editable pre-fill anyway).
 pub fn detect(root: &Path) -> DetectedStack {
     rust::detect(root)
         .or_else(|| node::detect(root))
         .or_else(|| go::detect(root))
+        .or_else(|| python::detect(root))
+        .or_else(|| php::detect(root))
+        .or_else(|| java::detect(root))
+        .or_else(|| csharp::detect(root))
+        .or_else(|| fsharp::detect(root))
+        .or_else(|| dart::detect(root))
+        .or_else(|| julia::detect(root))
+        .or_else(|| crystal::detect(root))
+        .or_else(|| haskell::detect(root))
+        .or_else(|| r::detect(root))
         .unwrap_or_default()
+}
+
+/// Finds the first file directly inside `root` whose extension matches
+/// `extension`, e.g. locating a project's single `*.csproj` file (whose
+/// name varies per project, unlike a fixed manifest filename). Not
+/// recursive, and picks arbitrarily if more than one match exists.
+pub(super) fn find_file_with_extension(root: &Path, extension: &str) -> Option<PathBuf> {
+    fs::read_dir(root)
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| path.extension().and_then(|ext| ext.to_str()) == Some(extension))
 }
 
 /// Shared helper: given the full set of detected dependency names and
@@ -56,14 +93,8 @@ pub(super) fn categorize(
 ) -> (Option<String>, Option<String>, Vec<String>, Vec<String>) {
     dependency_names.sort();
 
-    let framework = dependency_names
-        .iter()
-        .find(|name| frameworks.contains(&name.as_str()))
-        .cloned();
-    let database = dependency_names
-        .iter()
-        .find(|name| databases.contains(&name.as_str()))
-        .cloned();
+    let framework = dependency_names.iter().find(|name| frameworks.contains(&name.as_str())).cloned();
+    let database = dependency_names.iter().find(|name| databases.contains(&name.as_str())).cloned();
     let testing_tools: Vec<String> = dependency_names
         .iter()
         .filter(|name| testing.contains(&name.as_str()))
