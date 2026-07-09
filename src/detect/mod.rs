@@ -24,16 +24,20 @@ mod haskell;
 mod java;
 mod julia;
 mod lua;
+mod nim;
 mod node;
 mod objective_c;
 mod perl;
 mod php;
+mod powershell;
 mod python;
 mod r;
 mod ruby;
 mod rust;
 mod scala;
 mod swift;
+mod vbnet;
+mod zig;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -88,6 +92,10 @@ pub fn detect(root: &Path) -> DetectedStack {
         .or_else(|| objective_c::detect(root))
         .or_else(|| lua::detect(root))
         .or_else(|| perl::detect(root))
+        .or_else(|| vbnet::detect(root))
+        .or_else(|| nim::detect(root))
+        .or_else(|| powershell::detect(root))
+        .or_else(|| zig::detect(root))
         .unwrap_or_default()
 }
 
