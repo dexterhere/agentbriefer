@@ -1,0 +1,6 @@
+{% if custom_instructions %}
+## Custom Instructions
+
+{{ custom_instructions }}
+
+{% endif %}

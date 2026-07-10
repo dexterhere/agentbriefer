@@ -4,8 +4,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
+use super::ui;
 use crate::config::{self, OutputFormat, SkillforgeConfig};
 use crate::render::Renderer;
 
@@ -34,10 +35,10 @@ pub fn run() -> Result<()> {
     let report = generate(&root, &config, &renderer)?;
 
     for (format, path) in &report.succeeded {
-        println!("generated {format} -> {}", path.display());
+        ui::success(&format!("generated {format} -> {}", path.display()));
     }
     for (format, reason) in &report.failed {
-        println!("skipped {format}: {reason}");
+        ui::warn(&format!("skipped {format}: {reason}"));
     }
 
     Ok(())
@@ -54,6 +55,7 @@ fn generate(root: &Path, config: &SkillforgeConfig, renderer: &Renderer) -> Resu
         match renderer.render_output(format, config) {
             Ok(content) => {
                 let path = root.join(output_path(format));
+                refuse_if_symlink(&path)?;
                 if let Some(parent) = path.parent() {
                     fs::create_dir_all(parent).with_context(|| {
                         format!("failed to create directory {}", parent.display())
@@ -83,6 +85,24 @@ pub(super) fn output_path(format: OutputFormat) -> PathBuf {
     }
 }
 
+/// Refuses to write through an existing symlink at `path`. `fs::write`
+/// follows symlinks transparently, so without this check a project
+/// containing a symlink at one of the fixed output paths (e.g. a
+/// repository someone clones and runs `generate`/`sync` inside) could
+/// silently redirect a write to anywhere on disk the user has permission
+/// to write, rather than staying inside the project. Shared with `sync`,
+/// which writes through the same fixed set of output paths.
+pub(super) fn refuse_if_symlink(path: &Path) -> Result<()> {
+    if fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink()) {
+        bail!(
+            "{} is a symlink — refusing to write through it",
+            path.display()
+        );
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,6 +126,7 @@ mod tests {
                     database: None,
                     testing_tools: vec![],
                     package_manager: Some("cargo".to_string()),
+                    key_dependencies: vec![],
                 },
                 security_level: SecurityLevel::Standard,
                 testing_level: TestingLevel::Practical,
@@ -113,6 +134,7 @@ mod tests {
                 architecture_style: ArchitectureStyle::Simple,
             },
             stop_rules: vec![],
+            custom_instructions: None,
             outputs: OutputFormat::all(),
         }
     }
@@ -160,5 +182,24 @@ mod tests {
                     .contains("## Decision Loop")
             );
         }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn refuses_to_write_through_a_symlinked_output_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let sentinel = outside.path().join("sensitive.txt");
+        fs::write(&sentinel, "do not touch").unwrap();
+        std::os::unix::fs::symlink(&sentinel, dir.path().join("CLAUDE.md")).unwrap();
+
+        let renderer = Renderer::new().unwrap();
+        let mut config = sample_config();
+        config.outputs = vec![OutputFormat::ClaudeMd];
+
+        let result = generate(dir.path(), &config, &renderer);
+
+        assert!(result.is_err(), "generate should refuse the symlink");
+        assert_eq!(fs::read_to_string(&sentinel).unwrap(), "do not touch");
     }
 }

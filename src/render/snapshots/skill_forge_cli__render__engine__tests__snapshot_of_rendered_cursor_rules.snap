@@ -14,23 +14,20 @@ alwaysApply: true
 
 ## Developer Profile
 
-- Style: `practical`
-- Explanation style: `tradeoff-based`
+- Style: `practical` — Balance speed and quality: reasonable defaults, light structure, pragmatic tradeoffs over textbook-perfect solutions.
+- Explanation style: `tradeoff-based` — Focus explanations on the tradeoffs made: what was gained, what was given up, and why this option won.
 
 ## Project Profile
 
-- Project type: `cli-tool`
+- Project type: `cli-tool` — A command-line tool. Prioritize clear help text, predictable exit codes, and scriptability over interactive polish.
 - Language: `rust`
 - Package manager: `cargo`
 - Testing tools: `cargo-test`, `insta`
-- Security level: `strict`
-- Testing level: `practical`
-- Dependency policy: `explain-first`
-- Architecture style: `simple`
-
-> **Strict security mode.** Treat every change touching auth, validation,
-> secrets, permissions, or data access as high-risk by default. Prefer
-> stopping to ask over guessing when a security implication is unclear.
+- Key dependencies: `serde`, `tokio`
+- Security level: `strict` — Treat every change touching auth, validation, secrets, permissions, or data access as high-risk by default. Prefer stopping to ask over guessing when a security implication is unclear.
+- Testing level: `practical` — Add tests for new logic and bug fixes when practical. Don't chase 100% coverage or test trivial code.
+- Dependency policy: `explain-first` — A new dependency is fine, but explain why it's needed and what it replaces before adding it.
+- Architecture style: `simple` — Prefer the flattest structure that works. Don't introduce layers, interfaces, or abstractions the codebase doesn't already have.
 
 
 ## Decision Loop
@@ -46,7 +43,7 @@ optional overhead — it is how over-engineering gets caught before it happens.
 6. Is a new abstraction really necessary?
 7. Is a new dependency really necessary?
 8. What is the smallest safe change?
-9. Does the change match the developer's configured style?
+9. Does the change and its explanation match the developer's configured style?
 10. Does the change preserve security, validation, tests, and existing behavior?
 11. Should you stop and ask before continuing?
 

@@ -1,5 +1,7 @@
 # SkillForge CLI
 
+[![CI](https://github.com/dexterhere/skillforge/actions/workflows/ci.yml/badge.svg)](https://github.com/dexterhere/skillforge/actions/workflows/ci.yml)
+
 Configure how AI coding agents think, code, test, and stop inside your project.
 
 SkillForge CLI is a command-line tool for configuring AI coding-agent behavior
@@ -11,6 +13,45 @@ rules, and Copilot instructions — from a single source of truth.
 This is a personal tool first: the goal is to make day-to-day agentic
 development easier and more consistent, not to chase every AI tool that
 exists.
+
+## Status
+
+v1 is complete and working: `init`, `generate`, `sync`, `profile`, and
+`doctor` are all implemented, tested, and colorized. See
+[Roadmap](#roadmap--whats-next) for what's being considered beyond v1.
+
+## Installation
+
+Not yet published to crates.io — build from source:
+
+```bash
+git clone https://github.com/dexterhere/skillforge.git
+cd skillforge/skill-forge-cli
+cargo install --path .
+```
+
+This installs a `skillforge` binary (via `cargo`'s bin directory, usually
+`~/.cargo/bin`) — make sure that's on your `PATH`. Everything below assumes
+you're running `skillforge` from inside the project you want to configure.
+
+## Quick start
+
+```bash
+cd your-project
+skillforge init        # interactive wizard -> writes skillforge.yaml
+skillforge generate    # writes CLAUDE.md, AGENTS.md, .cursor/rules/skillforge.mdc,
+                        # and .github/copilot-instructions.md
+```
+
+Once you've hand-edited a generated file (added your own notes, tweaked
+something), switch to `sync` instead of `generate` so those edits survive:
+
+```bash
+skillforge sync         # re-renders but preserves manual edits outside
+                         # the <!-- skillforge:managed:start/end --> markers
+skillforge doctor        # flags conflicting settings, missing fields, and
+                          # files that have drifted from the current config
+```
 
 ## Core idea
 
@@ -40,15 +81,50 @@ Before writing code, the agent should be guided to ask itself:
 - Does it preserve security, validation, tests, and existing behavior?
 - Should the agent stop and ask before continuing?
 
-## Planned commands (v1)
+## Commands
 
 | Command | Purpose |
 |---|---|
-| `skillforge init` | Interactive setup; writes the project's `skillforge.yaml` config |
-| `skillforge generate` | Generates AI instruction files from the current configuration |
-| `skillforge sync` | Re-renders generated files when the configuration changes, preserving manual edits outside managed blocks |
-| `skillforge doctor` | Checks for weak, missing, or conflicting rules in the configuration |
-| `skillforge profile` | Creates/switches between reusable developer profiles (for working across multiple stacks) |
+| `skillforge init` | Interactive wizard; writes the project's `skillforge.yaml`. Colorized prompts, a one-line explanation before each question, and a review screen at the end where you can jump back and change any earlier answer before saving. |
+| `skillforge generate` | Renders every configured output format and writes it. A blunt overwrite — no attempt to preserve manual edits. Reports success/failure per format rather than failing the whole run. |
+| `skillforge sync` | Re-renders configured outputs but wraps SkillForge's content in `<!-- skillforge:managed:start/end -->` markers, so anything you add outside them survives. See [Generate vs. sync](#generate-vs-sync). |
+| `skillforge doctor` | Read-only linter: flags conflicting settings (e.g. `dependency_policy: allow` with `security_level: strict`), missing required fields, and files that would change if you ran `sync` right now. |
+| `skillforge profile list` / `create` / `switch` | Save a developer style (style + explanation style) once, reuse it across projects/stacks without re-answering the same two questions in every `init`. See [Developer profiles](#developer-profiles). |
+
+## Generate vs. sync
+
+`generate` and `sync` render the same content; they differ in what happens
+to a file that already exists:
+
+- **`generate`** always fully overwrites. Simplest mental model, right for
+  the very first run.
+- **`sync`** only replaces what's between its own markers. Cursor's `.mdc`
+  frontmatter (which must be the literal first bytes of the file) is kept
+  above the managed block for the same reason — so Cursor can still parse
+  it after a sync.
+
+**Known tradeoff:** if you `sync` a file (adding your own notes outside the
+markers) and later run `generate` on it out of habit, those manual
+additions are lost — `generate` has no concept of markers, by design. Once
+you've started hand-editing a generated file, stick to `sync`.
+
+## Developer profiles
+
+A *developer profile* is just your working style (developer style +
+explanation style) — the two questions that don't change based on which
+project or stack you're in. Save one once:
+
+```bash
+skillforge profile create   # asks the two questions, saves under
+                             # ~/.config/skillforge/profiles/<name>.yaml
+skillforge profile list
+skillforge profile switch   # applies a saved profile's style to the
+                             # CURRENT project's skillforge.yaml
+```
+
+`init` also offers to pre-fill from a saved profile instead of asking again.
+Profiles are a pre-fill source, not a live link: editing a saved profile
+later doesn't retroactively change projects that already used it.
 
 ## Configurable areas
 
@@ -60,18 +136,21 @@ Before writing code, the agent should be guided to ask itself:
 - **Dependency policy** — allow, explain-first, ask-first
 - **Architecture style** — simple, simple-layered, feature-based, advanced
 - **Explanation style** — short, beginner-friendly, detailed, tradeoff-based
-- **Stop rules** — when the agent must stop, ask, or avoid continuing
+- **Stop rules** — free-form situations where the agent must stop, ask, or avoid continuing
 
-## Generated output (v1 targets)
+## Generated output
 
-- `CLAUDE.md`
-- `AGENTS.md`
-- Cursor rules
-- GitHub Copilot instructions
+| Format | Written to |
+|---|---|
+| Claude Code | `CLAUDE.md` |
+| AGENTS.md convention | `AGENTS.md` |
+| Cursor | `.cursor/rules/skillforge.mdc` (with the `description`/`alwaysApply` frontmatter Cursor expects) |
+| GitHub Copilot | `.github/copilot-instructions.md` (the real path Copilot reads repo-wide custom instructions from) |
 
-Shared philosophy content (the decision loop, workflow loops) is templated
-once and included across all four formats, so they can't drift out of sync
-with each other.
+All four are generated from the same config through four shared template
+partials (`config_summary`, `decision_loop`, `workflow_loops`, `stop_rules`)
+— the philosophy text has one source of truth instead of four copies that
+could drift apart.
 
 ## Workflow loops
 
@@ -82,27 +161,73 @@ with each other.
 - **Testing Loop** — add/update tests per configured testing level; explain how to run them.
 - **Documentation Loop** — update docs only when setup, commands, env vars, or behavior actually change.
 
+## Architecture
+
+Three layers, each only depending on the one "below" it: `config` (data
+model + YAML I/O), `render` (Tera templates → text), and `cli` (commands,
+prompts, and all real filesystem/environment access).
+
+```mermaid
+flowchart TD
+    YAML[skillforge.yaml]
+    CLI["cli layer<br/>5 commands, all I/O"]
+    OUT["Output files<br/>CLAUDE.md + 3 more"]
+    CONFIG["config layer<br/>parses &amp; saves YAML"]
+    RENDER["render layer<br/>Tera templates to text"]
+
+    YAML --> CONFIG
+    CLI --> CONFIG
+    CLI --> RENDER
+    CONFIG --> RENDER
+    CLI --> OUT
+```
+
+See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for what each layer
+owns, the templates/partials layout, and a walkthrough of exactly what
+happens inside `init`, `generate`, `sync`, `doctor`, and `profile`.
+
 ## Tech stack
 
 Built in Rust:
 
 - `clap` — CLI argument/subcommand parsing
-- `dialoguer` — interactive `init` wizard prompts
-- `serde` / `serde_yaml` — `skillforge.yaml` config (de)serialization
+- `dialoguer` — interactive prompts, themed with `ColorfulTheme`
+- `serde` / `serde_yaml` — `skillforge.yaml` and profile (de)serialization
+- `strum` — enum iteration + `Display` for prompt option lists, kept in
+  sync with `serde`'s kebab-case YAML representation
 - `tera` — Jinja2-style templating for conditional instruction content
 - `rust-embed` — bundles `templates/` into release binaries, reads from disk in debug builds so template content can be edited without recompiling
-- `anyhow` — error handling
+- `thiserror` — typed errors in `config`/`render` (`ConfigError`, `RenderError`)
+- `anyhow` — error handling at the CLI boundary
 - `directories` — cross-platform resolution of `~/.config/skillforge`
-- `insta` — snapshot tests for rendered template output
+- `owo-colors` — terminal color for prompts and status output
+- `figlet-rs` — the startup banner
+- `insta` / `tempfile` (dev) — snapshot tests for rendered templates and filesystem-based integration tests
 
-## Status
+## Security
 
-Early scaffold — no functionality implemented yet. See the full architecture
-and build-order plan for the intended module layout
-(`config`, `render`, `generators`, `cli`) and command behavior.
+See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
-## Out of scope for v1
+## License
 
-Web dashboard, cloud sync, marketplace, team billing, VS Code extension, full
-autonomous agent runner, automatic PR creation, complex memory system,
-enterprise policy management.
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
+[MIT license](LICENSE-MIT) at your option (the standard Rust ecosystem
+convention).
+
+## Roadmap / what's next
+
+Being considered beyond v1 (not yet built):
+
+- **More providers** — additional output formats (Windsurf, Continue.dev,
+  Aider, ...) beyond the current four. Cheap to add given the template/
+  partial architecture above.
+- **Language/stack detection** — auto-detect language, package manager, and
+  framework from `Cargo.toml`/`package.json`/etc. during `init`, pre-filling
+  the prompts instead of starting blank.
+- **Skill marketplace (v0)** — `profile search`/`install` against a curated
+  Git-repo index of shared developer profiles, reusing the existing
+  `~/.config/skillforge/profiles/` machinery. No server, no accounts.
+
+Explicitly out of scope for now: web dashboard, cloud sync, team billing,
+VS Code extension, full autonomous agent runner, automatic PR creation,
+complex memory system, enterprise policy management.

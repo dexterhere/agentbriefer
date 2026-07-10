@@ -60,6 +60,7 @@ mod tests {
                     database: None,
                     testing_tools: vec![],
                     package_manager: Some("cargo".to_string()),
+                    key_dependencies: vec![],
                 },
                 security_level: SecurityLevel::Basic,
                 testing_level: TestingLevel::Light,
@@ -67,6 +68,7 @@ mod tests {
                 architecture_style: ArchitectureStyle::Simple,
             },
             stop_rules: vec![],
+            custom_instructions: None,
             outputs: OutputFormat::all(),
         }
     }

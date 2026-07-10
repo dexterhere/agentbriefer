@@ -61,7 +61,8 @@ impl Renderer {
         template_name: &str,
         config: &SkillforgeConfig,
     ) -> Result<String, RenderError> {
-        let context = Context::from_serialize(config).map_err(RenderError::Context)?;
+        let mut context = Context::from_serialize(config).map_err(RenderError::Context)?;
+        insert_descriptions(&mut context, config);
 
         self.tera
             .render(template_name, &context)
@@ -79,6 +80,42 @@ impl Renderer {
     ) -> Result<String, RenderError> {
         self.render(format.template_name(), config)
     }
+}
+
+/// Inserts a concrete, agent-facing description for every configured enum
+/// value into `context`, keyed by name for templates to reference (e.g.
+/// `{{ security_level_description }}`). These are computed from `config`'s
+/// current values, not persisted — they never touch `SkillforgeConfig`'s
+/// `Serialize` impl or `skillforge.yaml` itself.
+fn insert_descriptions(context: &mut Context, config: &SkillforgeConfig) {
+    context.insert(
+        "developer_style_description",
+        config.developer.style.description(),
+    );
+    context.insert(
+        "explanation_style_description",
+        config.developer.explanation_style.description(),
+    );
+    context.insert(
+        "project_type_description",
+        config.project.project_type.description(),
+    );
+    context.insert(
+        "security_level_description",
+        config.project.security_level.description(),
+    );
+    context.insert(
+        "testing_level_description",
+        config.project.testing_level.description(),
+    );
+    context.insert(
+        "dependency_policy_description",
+        config.project.dependency_policy.description(),
+    );
+    context.insert(
+        "architecture_style_description",
+        config.project.architecture_style.description(),
+    );
 }
 
 #[cfg(test)]
@@ -104,6 +141,7 @@ mod tests {
                     database: None,
                     testing_tools: vec!["cargo-test".to_string(), "insta".to_string()],
                     package_manager: Some("cargo".to_string()),
+                    key_dependencies: vec!["serde".to_string(), "tokio".to_string()],
                 },
                 security_level: SecurityLevel::Strict,
                 testing_level: TestingLevel::Practical,
@@ -111,6 +149,7 @@ mod tests {
                 architecture_style: ArchitectureStyle::Simple,
             },
             stop_rules: vec!["Stop before modifying CI/CD configuration".to_string()],
+            custom_instructions: None,
             outputs: OutputFormat::all(),
         }
     }
@@ -140,8 +179,12 @@ mod tests {
                 "{format} missing testing tools"
             );
             assert!(
-                output.contains("Strict security mode"),
-                "{format} missing strict security note"
+                output.contains("`serde`"),
+                "{format} missing key dependencies"
+            );
+            assert!(
+                output.contains("Prefer stopping to ask over guessing"),
+                "{format} missing strict security level description"
             );
             assert!(
                 output.contains("## Decision Loop"),
@@ -156,6 +199,56 @@ mod tests {
                 "{format} missing configured stop rule"
             );
         }
+    }
+
+    #[test]
+    fn description_context_is_driven_by_the_configured_value_not_static() {
+        let renderer = Renderer::new().unwrap();
+        let mut config = sample_config();
+        config.developer.style = DeveloperStyle::Minimal;
+
+        let minimal_output = renderer
+            .render_output(OutputFormat::ClaudeMd, &config)
+            .unwrap();
+        assert!(
+            minimal_output.contains(DeveloperStyle::Minimal.description()),
+            "expected minimal's own description to render"
+        );
+        assert!(
+            !minimal_output.contains(DeveloperStyle::Enterprise.description()),
+            "must not render a different style's description"
+        );
+
+        config.developer.style = DeveloperStyle::Enterprise;
+        let enterprise_output = renderer
+            .render_output(OutputFormat::ClaudeMd, &config)
+            .unwrap();
+        assert!(
+            enterprise_output.contains(DeveloperStyle::Enterprise.description()),
+            "expected enterprise's own description to render"
+        );
+        assert!(
+            !enterprise_output.contains(DeveloperStyle::Minimal.description()),
+            "must not still render the previous style's description"
+        );
+    }
+
+    #[test]
+    fn renders_custom_instructions_only_when_set() {
+        let renderer = Renderer::new().unwrap();
+        let mut config = sample_config();
+
+        let without = renderer
+            .render_output(OutputFormat::ClaudeMd, &config)
+            .unwrap();
+        assert!(!without.contains("## Custom Instructions"));
+
+        config.custom_instructions = Some("Never touch the legacy billing module.".to_string());
+        let with = renderer
+            .render_output(OutputFormat::ClaudeMd, &config)
+            .unwrap();
+        assert!(with.contains("## Custom Instructions"));
+        assert!(with.contains("Never touch the legacy billing module."));
     }
 
     #[test]

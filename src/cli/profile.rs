@@ -14,6 +14,7 @@ use anyhow::{Context, Result, bail};
 use dialoguer::{Confirm, Input, Select};
 
 use super::prompt::select_enum;
+use super::ui;
 use crate::config::{self, DeveloperProfile, SkillforgeConfig};
 
 /// Resolves `~/.config/skillforge/profiles` (or the platform equivalent).
@@ -68,7 +69,7 @@ pub fn run_list() -> Result<()> {
     let names = list_profile_names(&profiles_dir()?)?;
 
     if names.is_empty() {
-        println!("No saved profiles yet — run `skillforge profile create` to add one.");
+        ui::hint("No saved profiles yet — run `skillforge profile create` to add one.");
     } else {
         for name in names {
             println!("{name}");
@@ -83,11 +84,13 @@ pub fn run_create() -> Result<()> {
     let dir = profiles_dir()?;
     fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
 
-    let name: String = Input::new().with_prompt("Profile name").interact_text()?;
+    let name: String = Input::with_theme(&ui::theme())
+        .with_prompt("Profile name")
+        .interact_text()?;
     let path = profile_path(&dir, &name)?;
 
     if path.exists() {
-        let overwrite = Confirm::new()
+        let overwrite = Confirm::with_theme(&ui::theme())
             .with_prompt(format!("Profile '{name}' already exists — overwrite it?"))
             .default(false)
             .interact()?;
@@ -98,14 +101,22 @@ pub fn run_create() -> Result<()> {
         }
     }
 
+    ui::hint(
+        "Defines your working style and preferences — makes the agent's behavior personal, not generic.",
+    );
+    let style = select_enum("Developer style", None)?;
+
+    ui::hint("How much detail/reasoning the agent should include when explaining what it did.");
+    let explanation_style = select_enum("Explanation style", None)?;
+
     let profile = DeveloperProfile {
-        style: select_enum("Developer style")?,
-        explanation_style: select_enum("Explanation style")?,
+        style,
+        explanation_style,
     };
 
     config::save(&profile, &path).with_context(|| format!("failed to write {}", path.display()))?;
 
-    println!("Saved profile '{name}'.");
+    ui::success(&format!("Saved profile '{name}'."));
 
     Ok(())
 }
@@ -120,7 +131,7 @@ pub fn run_switch() -> Result<()> {
         bail!("no saved profiles yet — run `skillforge profile create` first");
     }
 
-    let index = Select::new()
+    let index = Select::with_theme(&ui::theme())
         .with_prompt("Switch to which profile?")
         .items(&names)
         .default(0)
@@ -144,7 +155,7 @@ pub fn run_switch() -> Result<()> {
     config::save(&project_config, &config_path)
         .with_context(|| format!("failed to write {}", config_path.display()))?;
 
-    println!("Switched developer profile to '{name}'.");
+    ui::success(&format!("Switched developer profile to '{name}'."));
 
     Ok(())
 }
@@ -162,6 +173,22 @@ mod tests {
         assert!(profile_path(dir.path(), "  ").is_err());
         assert!(profile_path(dir.path(), "team/rust").is_err());
         assert!(profile_path(dir.path(), "team\\rust").is_err());
+    }
+
+    #[test]
+    fn profile_path_cannot_escape_the_profiles_dir_via_a_dot_dot_name() {
+        // ".." has no '/' or '\\', so it isn't rejected by the separator
+        // check above -- but since it's used as a single path *component*
+        // (`dir.join(format!("{name}.yaml"))`), a bare ".." can never
+        // resolve to a parent directory anyway; it just becomes the
+        // harmless literal filename "...yaml". Locking that in explicitly
+        // rather than leaving it as an implicit, untested assumption.
+        let dir = tempfile::tempdir().unwrap();
+
+        let path = profile_path(dir.path(), "..").unwrap();
+
+        assert_eq!(path.parent(), Some(dir.path()));
+        assert_eq!(path.file_name().unwrap(), "...yaml");
     }
 
     #[test]

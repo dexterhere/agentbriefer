@@ -5,6 +5,7 @@
 > config and run `skillforge sync` to regenerate.
 
 {% include "partials/config_summary.tera" %}
+{% include "partials/custom_instructions.tera" %}
 {% include "partials/decision_loop.tera" %}
 
 {% include "partials/workflow_loops.tera" %}

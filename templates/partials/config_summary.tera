@@ -1,11 +1,11 @@
 ## Developer Profile
 
-- Style: `{{ developer.style }}`
-- Explanation style: `{{ developer.explanation_style }}`
+- Style: `{{ developer.style }}` — {{ developer_style_description }}
+- Explanation style: `{{ developer.explanation_style }}` — {{ explanation_style_description }}
 
 ## Project Profile
 
-- Project type: `{{ project.project_type }}`
+- Project type: `{{ project.project_type }}` — {{ project_type_description }}
 - Language: `{{ project.stack.language }}`
 {%- if project.stack.framework %}
 - Framework: `{{ project.stack.framework }}`
@@ -20,13 +20,11 @@
 - Testing tools: {% for tool in project.stack.testing_tools %}`{{ tool }}`{% if not loop.last %}, {% endif %}{% endfor %}
 
 {%- endif %}
-- Security level: `{{ project.security_level }}`
-- Testing level: `{{ project.testing_level }}`
-- Dependency policy: `{{ project.dependency_policy }}`
-- Architecture style: `{{ project.architecture_style }}`
+{%- if project.stack.key_dependencies %}
+- Key dependencies: {% for dep in project.stack.key_dependencies %}`{{ dep }}`{% if not loop.last %}, {% endif %}{% endfor %}
 
-{% if project.security_level == "strict" -%}
-> **Strict security mode.** Treat every change touching auth, validation,
-> secrets, permissions, or data access as high-risk by default. Prefer
-> stopping to ask over guessing when a security implication is unclear.
-{% endif %}
+{%- endif %}
+- Security level: `{{ project.security_level }}` — {{ security_level_description }}
+- Testing level: `{{ project.testing_level }}` — {{ testing_level_description }}
+- Dependency policy: `{{ project.dependency_policy }}` — {{ dependency_policy_description }}
+- Architecture style: `{{ project.architecture_style }}` — {{ architecture_style_description }}

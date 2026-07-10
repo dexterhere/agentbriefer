@@ -14,7 +14,8 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use super::generate::OutputReport;
-use super::generate::output_path;
+use super::generate::{output_path, refuse_if_symlink};
+use super::ui;
 use crate::config::{self, SkillforgeConfig};
 use crate::render::Renderer;
 
@@ -38,10 +39,10 @@ pub fn run() -> Result<()> {
     let report = sync(&root, &config, &renderer)?;
 
     for (format, path) in &report.succeeded {
-        println!("synced {format} -> {}", path.display());
+        ui::success(&format!("synced {format} -> {}", path.display()));
     }
     for (format, reason) in &report.failed {
-        println!("skipped {format}: {reason}");
+        ui::warn(&format!("skipped {format}: {reason}"));
     }
 
     Ok(())
@@ -72,6 +73,8 @@ fn sync(root: &Path, config: &SkillforgeConfig, renderer: &Renderer) -> Result<O
 /// Writes `rendered` to `path`, preserving any content outside an existing
 /// managed block (see the module docs for the merge rules).
 fn write_merged(path: &Path, rendered: &str) -> Result<()> {
+    refuse_if_symlink(path)?;
+
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create directory {}", parent.display()))?;
@@ -86,10 +89,10 @@ fn write_merged(path: &Path, rendered: &str) -> Result<()> {
                 format!("{}{block}{}", &existing[..start], &existing[end..])
             }
             None => {
-                println!(
+                ui::warn(&format!(
                     "no managed block found in {} — replacing its contents with a fresh one",
                     path.display()
-                );
+                ));
                 format!("{frontmatter}{block}")
             }
         },
@@ -126,14 +129,33 @@ pub(super) fn split_frontmatter(rendered: &str) -> (&str, &str) {
     }
 }
 
+/// Finds the byte offset of `marker`'s first occurrence that sits alone on
+/// its own line -- immediately preceded by the start of the string or a
+/// newline, and immediately followed by the end of the string or a
+/// newline. The genuine markers `sync` writes are always alone on their
+/// own line; a config value that merely *contains* the literal marker text
+/// (e.g. a stop rule quoting it, whether by accident or on purpose) never
+/// is, since it has other text sharing its line. Without this line anchor,
+/// such a value would be mistaken for a real boundary and silently corrupt
+/// the file on the next sync (content after the fake marker gets treated
+/// as "outside the block" and duplicated back in verbatim).
+fn find_marker_line(haystack: &str, marker: &str) -> Option<usize> {
+    haystack.match_indices(marker).find_map(|(pos, _)| {
+        let preceded_by_newline = pos == 0 || haystack.as_bytes()[pos - 1] == b'\n';
+        let after = pos + marker.len();
+        let followed_by_newline = after == haystack.len() || haystack.as_bytes()[after] == b'\n';
+        (preceded_by_newline && followed_by_newline).then_some(pos)
+    })
+}
+
 /// Finds the byte range covering an existing managed block, including its
 /// marker lines and the end marker's trailing newline. Returns `None` if
 /// the markers are missing, out of order, or otherwise malformed.
 pub(super) fn find_managed_block(existing: &str) -> Option<(usize, usize)> {
-    let start = existing.find(MARKER_START)?;
+    let start = find_marker_line(existing, MARKER_START)?;
     let after_start = start + MARKER_START.len();
-    let end_marker_offset = existing[after_start..].find(MARKER_END)?;
-    let end = after_start + end_marker_offset + MARKER_END.len();
+    let end = after_start + find_marker_line(&existing[after_start..], MARKER_END)?;
+    let end = end + MARKER_END.len();
     let end = existing[end..].strip_prefix('\n').map_or(end, |_| end + 1);
 
     Some((start, end))
@@ -162,6 +184,7 @@ mod tests {
                     database: None,
                     testing_tools: vec![],
                     package_manager: Some("cargo".to_string()),
+                    key_dependencies: vec![],
                 },
                 security_level: SecurityLevel::Standard,
                 testing_level: TestingLevel::Practical,
@@ -169,6 +192,7 @@ mod tests {
                 architecture_style: ArchitectureStyle::Simple,
             },
             stop_rules: vec![],
+            custom_instructions: None,
             outputs: OutputFormat::all(),
         }
     }
@@ -246,6 +270,25 @@ mod tests {
     }
 
     #[test]
+    fn managed_marker_text_embedded_inside_a_line_does_not_confuse_the_boundary() {
+        // A rendered body that merely *contains* the literal end-marker text
+        // (e.g. a stop rule that happens to quote it) must not be mistaken
+        // for the real end marker, which is always alone on its own line.
+        let existing = format!(
+            "{MARKER_START}\nRogue line with {MARKER_END} embedded mid-sentence.\nreal tail content\n{MARKER_END}\n"
+        );
+
+        let (start, end) = find_managed_block(&existing).unwrap();
+
+        assert_eq!(&existing[start..start + MARKER_START.len()], MARKER_START);
+        assert!(
+            existing[..end].ends_with(&format!("{MARKER_END}\n")),
+            "boundary must land on the real, line-alone end marker, not the embedded text"
+        );
+        assert_eq!(end, existing.len());
+    }
+
+    #[test]
     fn resync_preserves_manual_content_outside_the_markers() {
         let dir = tempfile::tempdir().unwrap();
         let renderer = Renderer::new().unwrap();
@@ -300,5 +343,21 @@ mod tests {
         assert!(!content.contains("Some old hand-written CLAUDE.md"));
         assert!(content.contains(MARKER_START));
         assert!(content.contains("## Decision Loop"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn refuses_to_write_through_a_symlinked_output_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let sentinel = outside.path().join("sensitive.txt");
+        fs::write(&sentinel, "do not touch").unwrap();
+        let path = dir.path().join("CLAUDE.md");
+        std::os::unix::fs::symlink(&sentinel, &path).unwrap();
+
+        let result = write_merged(&path, "rendered content");
+
+        assert!(result.is_err(), "sync should refuse the symlink");
+        assert_eq!(fs::read_to_string(&sentinel).unwrap(), "do not touch");
     }
 }
