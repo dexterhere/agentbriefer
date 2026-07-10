@@ -74,6 +74,27 @@ fn dependencies_from_pyproject(manifest: &toml::Value) -> Vec<String> {
         );
     }
 
+    // PEP 621 `[project.optional-dependencies]` is a table of named extras
+    // (commonly `dev`/`test`), each an array of version-spec strings --
+    // exactly where a real project declares `pytest`. Flattened across
+    // every extra group since `categorize()` doesn't need to know which
+    // named extra a dependency came from.
+    if let Some(optional) = manifest
+        .get("project")
+        .and_then(|p| p.get("optional-dependencies"))
+        .and_then(toml::Value::as_table)
+    {
+        for group in optional.values() {
+            if let Some(deps) = group.as_array() {
+                names.extend(
+                    deps.iter()
+                        .filter_map(toml::Value::as_str)
+                        .map(package_name_from_spec),
+                );
+            }
+        }
+    }
+
     for table_path in [
         ["tool", "poetry", "dependencies"],
         ["tool", "poetry", "dev-dependencies"],
@@ -163,6 +184,31 @@ dependencies = ["fastapi>=0.100", "sqlalchemy~=2.0"]
         assert_eq!(detected.framework.as_deref(), Some("fastapi"));
         assert_eq!(detected.database.as_deref(), Some("sqlalchemy"));
         assert_eq!(detected.package_manager.as_deref(), Some("pip"));
+    }
+
+    #[test]
+    fn detects_testing_tools_in_pep_621_optional_dependencies() {
+        // Real PEP 621 projects declare dev/test-only deps (pytest, httpx,
+        // ...) under `[project.optional-dependencies]`, not the main
+        // `dependencies` array -- this must not be invisible to detection.
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("pyproject.toml"),
+            r#"
+[project]
+name = "example"
+dependencies = ["fastapi>=0.100", "sqlalchemy~=2.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "httpx>=0.24"]
+"#,
+        )
+        .unwrap();
+
+        let detected = detect(dir.path()).unwrap();
+
+        assert_eq!(detected.testing_tools, vec!["pytest".to_string()]);
+        assert!(detected.key_dependencies.contains(&"httpx".to_string()));
     }
 
     #[test]
