@@ -1,4 +1,4 @@
-//! Error types for loading and saving SkillForge configuration files.
+//! Error types for loading and saving Agentbriefer configuration files.
 
 use std::path::PathBuf;
 

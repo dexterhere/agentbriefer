@@ -1,12 +1,12 @@
-# SkillForge CLI
+# Agentbriefer CLI
 
-[![CI](https://github.com/dexterhere/skillforge/actions/workflows/ci.yml/badge.svg)](https://github.com/dexterhere/skillforge/actions/workflows/ci.yml)
+[![CI](https://github.com/dexterhere/agentbriefer/actions/workflows/ci.yml/badge.svg)](https://github.com/dexterhere/agentbriefer/actions/workflows/ci.yml)
 
 Configure how AI coding agents think, code, test, and stop inside your project.
 
-SkillForge CLI is a command-line tool for configuring AI coding-agent behavior
+Agentbriefer CLI is a command-line tool for configuring AI coding-agent behavior
 inside software projects. Instead of repeatedly telling an AI assistant how to
-work, you configure the rules once. SkillForge then generates the instruction
+work, you configure the rules once. Agentbriefer then generates the instruction
 files different AI coding tools understand — `CLAUDE.md`, `AGENTS.md`, Cursor
 rules, and Copilot instructions — from a single source of truth.
 
@@ -25,21 +25,21 @@ v1 is complete and working: `init`, `generate`, `sync`, `profile`, and
 Not yet published to crates.io — build from source:
 
 ```bash
-git clone https://github.com/dexterhere/skillforge.git
-cd skillforge/skill-forge-cli
+git clone https://github.com/dexterhere/agentbriefer.git
+cd agentbriefer/agentbriefer
 cargo install --path .
 ```
 
-This installs a `skillforge` binary (via `cargo`'s bin directory, usually
+This installs a `agentbriefer` binary (via `cargo`'s bin directory, usually
 `~/.cargo/bin`) — make sure that's on your `PATH`. Everything below assumes
-you're running `skillforge` from inside the project you want to configure.
+you're running `agentbriefer` from inside the project you want to configure.
 
 ## Quick start
 
 ```bash
 cd your-project
-skillforge init        # interactive wizard -> writes skillforge.yaml
-skillforge generate    # writes CLAUDE.md, AGENTS.md, .cursor/rules/skillforge.mdc,
+agentbriefer init        # interactive wizard -> writes agentbriefer.yaml
+agentbriefer generate    # writes CLAUDE.md, AGENTS.md, .cursor/rules/agentbriefer.mdc,
                         # and .github/copilot-instructions.md
 ```
 
@@ -47,15 +47,15 @@ Once you've hand-edited a generated file (added your own notes, tweaked
 something), switch to `sync` instead of `generate` so those edits survive:
 
 ```bash
-skillforge sync         # re-renders but preserves manual edits outside
-                         # the <!-- skillforge:managed:start/end --> markers
-skillforge doctor        # flags conflicting settings, missing fields, and
+agentbriefer sync         # re-renders but preserves manual edits outside
+                         # the <!-- agentbriefer:managed:start/end --> markers
+agentbriefer doctor        # flags conflicting settings, missing fields, and
                           # files that have drifted from the current config
 ```
 
 ## Core idea
 
-SkillForge is not only about telling AI what to write. It's also about
+Agentbriefer is not only about telling AI what to write. It's also about
 teaching it when *not* to write code, when to reuse existing code, when to
 ask before a risky change, and when to stop once the requested work is done.
 
@@ -85,11 +85,11 @@ Before writing code, the agent should be guided to ask itself:
 
 | Command | Purpose |
 |---|---|
-| `skillforge init` | Interactive wizard; writes the project's `skillforge.yaml`. Colorized prompts, a one-line explanation before each question, and a review screen at the end where you can jump back and change any earlier answer before saving. |
-| `skillforge generate` | Renders every configured output format and writes it. A blunt overwrite — no attempt to preserve manual edits. Reports success/failure per format rather than failing the whole run. |
-| `skillforge sync` | Re-renders configured outputs but wraps SkillForge's content in `<!-- skillforge:managed:start/end -->` markers, so anything you add outside them survives. See [Generate vs. sync](#generate-vs-sync). |
-| `skillforge doctor` | Read-only linter: flags conflicting settings (e.g. `dependency_policy: allow` with `security_level: strict`), missing required fields, and files that would change if you ran `sync` right now. |
-| `skillforge profile list` / `create` / `switch` | Save a developer style (style + explanation style) once, reuse it across projects/stacks without re-answering the same two questions in every `init`. See [Developer profiles](#developer-profiles). |
+| `agentbriefer init` | Interactive wizard; writes the project's `agentbriefer.yaml`. Colorized prompts, a one-line explanation before each question, and a review screen at the end where you can jump back and change any earlier answer before saving. |
+| `agentbriefer generate` | Renders every configured output format and writes it. A blunt overwrite — no attempt to preserve manual edits. Reports success/failure per format rather than failing the whole run. |
+| `agentbriefer sync` | Re-renders configured outputs but wraps Agentbriefer's content in `<!-- agentbriefer:managed:start/end -->` markers, so anything you add outside them survives. See [Generate vs. sync](#generate-vs-sync). |
+| `agentbriefer doctor` | Read-only linter: flags conflicting settings (e.g. `dependency_policy: allow` with `security_level: strict`), missing required fields, and files that would change if you ran `sync` right now. |
+| `agentbriefer profile list` / `create` / `switch` | Save a developer style (style + explanation style) once, reuse it across projects/stacks without re-answering the same two questions in every `init`. See [Developer profiles](#developer-profiles). |
 
 ## Generate vs. sync
 
@@ -115,11 +115,11 @@ explanation style) — the two questions that don't change based on which
 project or stack you're in. Save one once:
 
 ```bash
-skillforge profile create   # asks the two questions, saves under
-                             # ~/.config/skillforge/profiles/<name>.yaml
-skillforge profile list
-skillforge profile switch   # applies a saved profile's style to the
-                             # CURRENT project's skillforge.yaml
+agentbriefer profile create   # asks the two questions, saves under
+                             # ~/.config/agentbriefer/profiles/<name>.yaml
+agentbriefer profile list
+agentbriefer profile switch   # applies a saved profile's style to the
+                             # CURRENT project's agentbriefer.yaml
 ```
 
 `init` also offers to pre-fill from a saved profile instead of asking again.
@@ -144,7 +144,7 @@ later doesn't retroactively change projects that already used it.
 |---|---|
 | Claude Code | `CLAUDE.md` |
 | AGENTS.md convention | `AGENTS.md` |
-| Cursor | `.cursor/rules/skillforge.mdc` (with the `description`/`alwaysApply` frontmatter Cursor expects) |
+| Cursor | `.cursor/rules/agentbriefer.mdc` (with the `description`/`alwaysApply` frontmatter Cursor expects) |
 | GitHub Copilot | `.github/copilot-instructions.md` (the real path Copilot reads repo-wide custom instructions from) |
 
 All four are generated from the same config through four shared template
@@ -169,7 +169,7 @@ prompts, and all real filesystem/environment access).
 
 ```mermaid
 flowchart TD
-    YAML[skillforge.yaml]
+    YAML[agentbriefer.yaml]
     CLI["cli layer<br/>5 commands, all I/O"]
     OUT["Output files<br/>CLAUDE.md + 3 more"]
     CONFIG["config layer<br/>parses &amp; saves YAML"]
@@ -192,14 +192,14 @@ Built in Rust:
 
 - `clap` — CLI argument/subcommand parsing
 - `dialoguer` — interactive prompts, themed with `ColorfulTheme`
-- `serde` / `serde_yaml` — `skillforge.yaml` and profile (de)serialization
+- `serde` / `serde_yaml` — `agentbriefer.yaml` and profile (de)serialization
 - `strum` — enum iteration + `Display` for prompt option lists, kept in
   sync with `serde`'s kebab-case YAML representation
 - `tera` — Jinja2-style templating for conditional instruction content
 - `rust-embed` — bundles `templates/` into release binaries, reads from disk in debug builds so template content can be edited without recompiling
 - `thiserror` — typed errors in `config`/`render` (`ConfigError`, `RenderError`)
 - `anyhow` — error handling at the CLI boundary
-- `directories` — cross-platform resolution of `~/.config/skillforge`
+- `directories` — cross-platform resolution of `~/.config/agentbriefer`
 - `owo-colors` — terminal color for prompts and status output
 - `figlet-rs` — the startup banner
 - `insta` / `tempfile` (dev) — snapshot tests for rendered templates and filesystem-based integration tests
@@ -226,7 +226,7 @@ Being considered beyond v1 (not yet built):
   the prompts instead of starting blank.
 - **Skill marketplace (v0)** — `profile search`/`install` against a curated
   Git-repo index of shared developer profiles, reusing the existing
-  `~/.config/skillforge/profiles/` machinery. No server, no accounts.
+  `~/.config/agentbriefer/profiles/` machinery. No server, no accounts.
 
 Explicitly out of scope for now: web dashboard, cloud sync, team billing,
 VS Code extension, full autonomous agent runner, automatic PR creation,

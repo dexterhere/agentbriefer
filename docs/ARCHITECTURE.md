@@ -1,12 +1,12 @@
 # Architecture
 
-SkillForge CLI is split into three layers. Each layer only depends on the
+Agentbriefer CLI is split into three layers. Each layer only depends on the
 one "below" it — this is enforced by convention, not by a build tool, but
 it's consistent throughout the codebase:
 
 ```mermaid
 flowchart TD
-    YAML[skillforge.yaml]
+    YAML[agentbriefer.yaml]
     CLI["cli layer<br/>5 commands, all I/O"]
     OUT["Output files<br/>CLAUDE.md + 3 more"]
     CONFIG["config layer<br/>parses &amp; saves YAML"]
@@ -24,11 +24,11 @@ flowchart TD
 ### `config` — data model + YAML I/O
 
 `src/config/` (`schema.rs`, `loader.rs`, `error.rs`). Defines
-`SkillforgeConfig`, `DeveloperProfile`, `ProjectProfile`, `Stack`, and the
+`AgentbrieferConfig`, `DeveloperProfile`, `ProjectProfile`, `Stack`, and the
 seven config enums, all deriving `serde::{Serialize, Deserialize}` and
 `strum::{Display, EnumIter}`. `loader::load`/`loader::save` are generic over
 any serializable type — the same two functions read/write both
-`skillforge.yaml` and the profile files under `~/.config/skillforge/profiles/`.
+`agentbriefer.yaml` and the profile files under `~/.config/agentbriefer/profiles/`.
 
 This layer has **no dependency on the filesystem location, the terminal, or
 templates.** It only knows how to turn a `Path` into a typed value and back.
@@ -45,7 +45,7 @@ from the config via `Context::from_serialize` (works for free because every
 config type already derives `Serialize`) and renders the template that
 `OutputFormat::template_name()` maps to.
 
-This layer depends on `config` (it renders a `SkillforgeConfig`), but knows
+This layer depends on `config` (it renders a `AgentbrieferConfig`), but knows
 nothing about *where* that config came from or where the rendered text will
 be written.
 
@@ -56,7 +56,7 @@ be written.
 enum-picker prompt, `ui.rs` for color/hints/the banner). This is the
 **only** layer that touches `std::env::current_dir()`, stdin, or
 `~/.config` — every command resolves those for real, then calls into
-`config`/`render` with plain, injectable `Path`/`SkillforgeConfig` values so
+`config`/`render` with plain, injectable `Path`/`AgentbrieferConfig` values so
 the interesting logic stays testable against a tempdir instead of the real
 filesystem.
 
@@ -92,7 +92,7 @@ the config questions (optionally pre-filling the developer style from a
 saved profile), shows a review-and-edit menu built from the config's
 current values, then calls `config::save`.
 
-**`generate`** — `config::load` the project's `skillforge.yaml`, build one
+**`generate`** — `config::load` the project's `agentbriefer.yaml`, build one
 `Renderer`, and for each configured output: render it, and on success write
 it to its real path (creating parent directories like `.cursor/rules/` as
 needed). A rendering failure for one format (e.g. a template that doesn't
@@ -103,7 +103,7 @@ formats still get written.
 different: it splits the rendered output into `(frontmatter, body)`
 (frontmatter must stay the literal first bytes of a file for Cursor's
 `.mdc` parser to work), wraps `body` in
-`<!-- skillforge:managed:start/end -->` markers, and — if the file already
+`<!-- agentbriefer:managed:start/end -->` markers, and — if the file already
 has those markers — replaces only the byte range between them, leaving
 everything else in the file untouched.
 
@@ -116,7 +116,7 @@ separate staleness mechanism — "out of sync" concretely means "running
 `sync` right now would change this file."
 
 **`profile`** — `list`/`create`/`switch` operate on
-`~/.config/skillforge/profiles/*.yaml`, resolved via the `directories`
+`~/.config/agentbriefer/profiles/*.yaml`, resolved via the `directories`
 crate. A profile is just a saved `DeveloperProfile` (two fields); `switch`
 loads one and overwrites the *current* project's `developer:` section.
 Profiles are a pre-fill/copy source, not a live reference — editing a saved

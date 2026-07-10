@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-SkillForge CLI has not yet made a versioned/tagged release — it's early-stage,
+Agentbriefer CLI has not yet made a versioned/tagged release — it's early-stage,
 pre-1.0 software. Security fixes are made against the latest commit on the
 `main` branch only; there is no support for older commits or forks.
 
@@ -21,11 +21,11 @@ security fixes.
 
 Report privately using GitHub's built-in vulnerability reporting:
 
-1. Go to the [Security tab](https://github.com/dexterhere/skillforge/security) of this repository.
+1. Go to the [Security tab](https://github.com/dexterhere/agentbriefer/security) of this repository.
 2. Click **Report a vulnerability**.
 3. Include as much of the following as you can:
    - A description of the issue and its potential impact.
-   - Steps to reproduce it, or a minimal example (e.g. a `skillforge.yaml`
+   - Steps to reproduce it, or a minimal example (e.g. a `agentbriefer.yaml`
      or profile file that triggers the problem).
    - The commit hash or version you tested against.
    - Any suggested fix, if you have one.
@@ -40,9 +40,9 @@ anonymous.
 ## Scope
 
 **In scope:**
-- The `skillforge` CLI binary itself: config loading (`skillforge.yaml`),
+- The `agentbriefer` CLI binary itself: config loading (`agentbriefer.yaml`),
   developer profile files, template rendering, and file generation/sync.
-- Anything that would let a malicious `skillforge.yaml` or profile file
+- Anything that would let a malicious `agentbriefer.yaml` or profile file
   (including ones fetched from a future skill marketplace) cause more than
   a bad configuration — e.g. writing outside the intended project directory,
   path traversal via a crafted profile name, or executing anything other
@@ -51,14 +51,14 @@ anonymous.
 **Out of scope / handled differently:**
 - Vulnerabilities in third-party dependencies (`clap`, `serde`, `tera`,
   etc.) — please report those to the upstream crate first. If you find one
-  that affects SkillForge specifically (e.g. it's reachable with
+  that affects Agentbriefer specifically (e.g. it's reachable with
   attacker-controlled input), a report here is still welcome so the
   dependency can be updated.
 - Social engineering, physical access, or issues that require the user to
   already run untrusted code with their own permissions.
 
-**Why the surface is small today:** SkillForge does not execute arbitrary
-code from configuration. `skillforge.yaml` and profile files deserialize
+**Why the surface is small today:** Agentbriefer does not execute arbitrary
+code from configuration. `agentbriefer.yaml` and profile files deserialize
 into a fixed set of typed fields (enums and plain strings) via `serde` —
 there's no code path that turns config content into a shell command or
 arbitrary file write outside what `generate`/`sync` already do by design.

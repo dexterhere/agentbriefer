@@ -1,13 +1,13 @@
 [package]
-name = "skill-forge-cli"
-version = "0.1.1"
+name = "agentbriefer"
+version = "0.2.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Configure how AI coding agents think, code, test, and stop inside your project."
-repository = "https://github.com/dexterhere/skillforge"
+repository = "https://github.com/dexterhere/agentbriefer"
 
 [[bin]]
-name = "skillforge"
+name = "agentbriefer"
 path = "src/main.rs"
 
 [dependencies]

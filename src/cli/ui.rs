@@ -29,16 +29,16 @@ pub(super) fn warn(text: &str) {
     println!("{}", text.yellow());
 }
 
-/// Prints the "SkillForge" banner and tagline. Called once, at the start
+/// Prints the "Agentbriefer" banner and tagline. Called once, at the start
 /// of `init` — the one genuine "first impression" moment; every other
 /// command is run too often day-to-day to justify reprinting it.
 pub(super) fn print_banner() {
     if let Ok(font) = figlet_rs::FIGfont::standard()
-        && let Some(figure) = font.convert("SkillForge")
+        && let Some(figure) = font.convert("Agentbriefer")
     {
         println!("{}", figure.to_string().cyan().bold());
     } else {
-        println!("{}", "SkillForge".cyan().bold());
+        println!("{}", "Agentbriefer".cyan().bold());
     }
 
     println!(

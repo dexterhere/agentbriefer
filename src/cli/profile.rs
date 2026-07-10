@@ -1,8 +1,8 @@
-//! `skillforge profile` — manage reusable developer profiles under
-//! `~/.config/skillforge/profiles/`.
+//! `agentbriefer profile` — manage reusable developer profiles under
+//! `~/.config/agentbriefer/profiles/`.
 //!
 //! Profiles are a pre-fill source, not a live-resolved reference: a
-//! project's `skillforge.yaml` always holds a concrete `developer:` section.
+//! project's `agentbriefer.yaml` always holds a concrete `developer:` section.
 //! `extends: <name>` is written alongside it only as a record of which
 //! saved profile it came from — nothing re-reads it at `generate`/`sync`
 //! time.
@@ -15,11 +15,11 @@ use dialoguer::{Confirm, Input, Select};
 
 use super::prompt::select_enum;
 use super::ui;
-use crate::config::{self, DeveloperProfile, SkillforgeConfig};
+use crate::config::{self, AgentbrieferConfig, DeveloperProfile};
 
-/// Resolves `~/.config/skillforge/profiles` (or the platform equivalent).
+/// Resolves `~/.config/agentbriefer/profiles` (or the platform equivalent).
 pub(super) fn profiles_dir() -> Result<PathBuf> {
-    let dirs = directories::ProjectDirs::from("", "", "skillforge")
+    let dirs = directories::ProjectDirs::from("", "", "agentbriefer")
         .context("could not determine the user's config directory")?;
 
     Ok(dirs.config_dir().join("profiles"))
@@ -64,12 +64,12 @@ pub(super) fn load_profile(dir: &Path, name: &str) -> Result<DeveloperProfile> {
         .with_context(|| format!("failed to load profile '{name}'"))
 }
 
-/// Runs `skillforge profile list`.
+/// Runs `agentbriefer profile list`.
 pub fn run_list() -> Result<()> {
     let names = list_profile_names(&profiles_dir()?)?;
 
     if names.is_empty() {
-        ui::hint("No saved profiles yet — run `skillforge profile create` to add one.");
+        ui::hint("No saved profiles yet — run `agentbriefer profile create` to add one.");
     } else {
         for name in names {
             println!("{name}");
@@ -79,7 +79,7 @@ pub fn run_list() -> Result<()> {
     Ok(())
 }
 
-/// Runs `skillforge profile create`.
+/// Runs `agentbriefer profile create`.
 pub fn run_create() -> Result<()> {
     let dir = profiles_dir()?;
     fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
@@ -121,14 +121,14 @@ pub fn run_create() -> Result<()> {
     Ok(())
 }
 
-/// Runs `skillforge profile switch` — applies a saved profile's developer
-/// style to the current project's `skillforge.yaml`.
+/// Runs `agentbriefer profile switch` — applies a saved profile's developer
+/// style to the current project's `agentbriefer.yaml`.
 pub fn run_switch() -> Result<()> {
     let dir = profiles_dir()?;
     let names = list_profile_names(&dir)?;
 
     if names.is_empty() {
-        bail!("no saved profiles yet — run `skillforge profile create` first");
+        bail!("no saved profiles yet — run `agentbriefer profile create` first");
     }
 
     let index = Select::with_theme(&ui::theme())
@@ -142,9 +142,9 @@ pub fn run_switch() -> Result<()> {
     let root = std::env::current_dir().context("failed to resolve the current directory")?;
     let config_path = root.join(config::CONFIG_FILE_NAME);
 
-    let mut project_config: SkillforgeConfig = config::load(&config_path).with_context(|| {
+    let mut project_config: AgentbrieferConfig = config::load(&config_path).with_context(|| {
         format!(
-            "no {} found — run `skillforge init` first",
+            "no {} found — run `agentbriefer init` first",
             config::CONFIG_FILE_NAME
         )
     })?;

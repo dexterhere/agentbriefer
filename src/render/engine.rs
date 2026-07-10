@@ -1,10 +1,10 @@
 //! Loads templates (embedded in release builds, read live from disk in debug
-//! builds) and renders them against a [`SkillforgeConfig`].
+//! builds) and renders them against a [`AgentbrieferConfig`].
 
 use rust_embed::RustEmbed;
 use tera::{Context, Tera};
 
-use crate::config::{OutputFormat, SkillforgeConfig};
+use crate::config::{AgentbrieferConfig, OutputFormat};
 
 use super::error::RenderError;
 
@@ -16,7 +16,7 @@ use super::error::RenderError;
 #[folder = "templates/"]
 struct TemplateAssets;
 
-/// Renders SkillForge output formats from a loaded configuration.
+/// Renders Agentbriefer output formats from a loaded configuration.
 ///
 /// Construction (`new`) does the real work of registering every template
 /// with the underlying Tera engine, so a `Renderer` should be built once and
@@ -59,7 +59,7 @@ impl Renderer {
     pub fn render(
         &self,
         template_name: &str,
-        config: &SkillforgeConfig,
+        config: &AgentbrieferConfig,
     ) -> Result<String, RenderError> {
         let mut context = Context::from_serialize(config).map_err(RenderError::Context)?;
         insert_descriptions(&mut context, config);
@@ -76,7 +76,7 @@ impl Renderer {
     pub fn render_output(
         &self,
         format: OutputFormat,
-        config: &SkillforgeConfig,
+        config: &AgentbrieferConfig,
     ) -> Result<String, RenderError> {
         self.render(format.template_name(), config)
     }
@@ -85,9 +85,9 @@ impl Renderer {
 /// Inserts a concrete, agent-facing description for every configured enum
 /// value into `context`, keyed by name for templates to reference (e.g.
 /// `{{ security_level_description }}`). These are computed from `config`'s
-/// current values, not persisted — they never touch `SkillforgeConfig`'s
-/// `Serialize` impl or `skillforge.yaml` itself.
-fn insert_descriptions(context: &mut Context, config: &SkillforgeConfig) {
+/// current values, not persisted — they never touch `AgentbrieferConfig`'s
+/// `Serialize` impl or `agentbriefer.yaml` itself.
+fn insert_descriptions(context: &mut Context, config: &AgentbrieferConfig) {
     context.insert(
         "developer_style_description",
         config.developer.style.description(),
@@ -126,8 +126,8 @@ mod tests {
         ProjectProfile, ProjectType, SecurityLevel, Stack, TestingLevel,
     };
 
-    fn sample_config() -> SkillforgeConfig {
-        SkillforgeConfig {
+    fn sample_config() -> AgentbrieferConfig {
+        AgentbrieferConfig {
             extends: None,
             developer: DeveloperProfile {
                 style: DeveloperStyle::Practical,

@@ -1,4 +1,4 @@
-//! Reading and writing `skillforge.yaml` config files on disk.
+//! Reading and writing `agentbriefer.yaml` config files on disk.
 
 use std::fs;
 use std::path::Path;
@@ -8,10 +8,10 @@ use serde::de::DeserializeOwned;
 
 use super::error::ConfigError;
 
-/// Conventional file name for a project's SkillForge configuration.
-pub const CONFIG_FILE_NAME: &str = "skillforge.yaml";
+/// Conventional file name for a project's Agentbriefer configuration.
+pub const CONFIG_FILE_NAME: &str = "agentbriefer.yaml";
 
-/// Loads any YAML-serializable value (a [`super::SkillforgeConfig`] or a
+/// Loads any YAML-serializable value (a [`super::AgentbrieferConfig`] or a
 /// [`super::DeveloperProfile`]) from the given file.
 pub fn load<T: DeserializeOwned>(path: &Path) -> Result<T, ConfigError> {
     let contents = fs::read_to_string(path).map_err(|source| ConfigError::Read {
@@ -40,13 +40,13 @@ pub fn save<T: Serialize>(value: &T, path: &Path) -> Result<(), ConfigError> {
 mod tests {
     use super::*;
     use crate::config::schema::{
-        ArchitectureStyle, DependencyPolicy, DeveloperProfile, DeveloperStyle, ExplanationStyle,
-        OutputFormat, ProjectProfile, ProjectType, SecurityLevel, SkillforgeConfig, Stack,
+        AgentbrieferConfig, ArchitectureStyle, DependencyPolicy, DeveloperProfile, DeveloperStyle,
+        ExplanationStyle, OutputFormat, ProjectProfile, ProjectType, SecurityLevel, Stack,
         TestingLevel,
     };
 
-    fn sample_config() -> SkillforgeConfig {
-        SkillforgeConfig {
+    fn sample_config() -> AgentbrieferConfig {
+        AgentbrieferConfig {
             extends: None,
             developer: DeveloperProfile {
                 style: DeveloperStyle::Minimal,
@@ -90,7 +90,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("does-not-exist.yaml");
 
-        let err = load::<SkillforgeConfig>(&path).unwrap_err();
+        let err = load::<AgentbrieferConfig>(&path).unwrap_err();
 
         assert!(matches!(err, ConfigError::Read { .. }));
     }
@@ -99,9 +99,9 @@ mod tests {
     fn load_reports_invalid_yaml() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(CONFIG_FILE_NAME);
-        fs::write(&path, "not: [valid, skillforge, config").unwrap();
+        fs::write(&path, "not: [valid, agentbriefer, config").unwrap();
 
-        let err = load::<SkillforgeConfig>(&path).unwrap_err();
+        let err = load::<AgentbrieferConfig>(&path).unwrap_err();
 
         assert!(matches!(err, ConfigError::Parse { .. }));
     }

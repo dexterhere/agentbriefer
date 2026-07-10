@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
-    name = "skillforge",
+    name = "agentbriefer",
     version,
     about = "Configure how AI coding agents think, code, test, and stop inside your project."
 )]
@@ -14,12 +14,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Interactive setup; writes the project's skillforge.yaml
+    /// Interactive setup; writes the project's agentbriefer.yaml
     Init,
-    /// Generate AI instruction files from skillforge.yaml
+    /// Generate AI instruction files from agentbriefer.yaml
     Generate,
     /// Re-render AI instruction files, preserving manual edits outside the
-    /// SkillForge-managed block. Note: running `generate` afterwards does
+    /// agentbriefer-managed block. Note: running `generate` afterwards does
     /// not respect those markers and will overwrite manual edits.
     Sync,
     /// Manage reusable developer profiles
@@ -46,14 +46,14 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init => skill_forge_cli::cli::run_init(),
-        Commands::Generate => skill_forge_cli::cli::run_generate(),
-        Commands::Sync => skill_forge_cli::cli::run_sync(),
+        Commands::Init => agentbriefer::cli::run_init(),
+        Commands::Generate => agentbriefer::cli::run_generate(),
+        Commands::Sync => agentbriefer::cli::run_sync(),
         Commands::Profile { action } => match action {
-            ProfileAction::List => skill_forge_cli::cli::run_profile_list(),
-            ProfileAction::Create => skill_forge_cli::cli::run_profile_create(),
-            ProfileAction::Switch => skill_forge_cli::cli::run_profile_switch(),
+            ProfileAction::List => agentbriefer::cli::run_profile_list(),
+            ProfileAction::Create => agentbriefer::cli::run_profile_create(),
+            ProfileAction::Switch => agentbriefer::cli::run_profile_switch(),
         },
-        Commands::Doctor => skill_forge_cli::cli::run_doctor(),
+        Commands::Doctor => agentbriefer::cli::run_doctor(),
     }
 }
