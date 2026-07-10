@@ -1,6 +1,6 @@
 [package]
 name = "agentbriefer"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Configure how AI coding agents think, code, test, and stop inside your project."
