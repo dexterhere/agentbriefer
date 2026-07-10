@@ -1,8 +1,8 @@
-//! `skillforge sync` — re-renders configured outputs while preserving any
-//! manual edits made outside the SkillForge-managed block.
+//! `agentbriefer sync` — re-renders configured outputs while preserving any
+//! manual edits made outside the Agentbriefer-managed block.
 //!
 //! Unlike `generate` (a blunt overwrite), `sync` wraps the content it owns
-//! in `<!-- skillforge:managed:start -->` / `<!-- skillforge:managed:end -->`
+//! in `<!-- agentbriefer:managed:start -->` / `<!-- agentbriefer:managed:end -->`
 //! markers and only ever replaces what's between them. Anything you add
 //! above or below the markers survives every future `sync`. Running `generate`
 //! on a synced file does *not* preserve those manual additions — `generate`
@@ -16,20 +16,20 @@ use anyhow::{Context, Result};
 use super::generate::OutputReport;
 use super::generate::{output_path, refuse_if_symlink};
 use super::ui;
-use crate::config::{self, SkillforgeConfig};
+use crate::config::{self, AgentbrieferConfig};
 use crate::render::Renderer;
 
-const MARKER_START: &str = "<!-- skillforge:managed:start -->";
-const MARKER_END: &str = "<!-- skillforge:managed:end -->";
+const MARKER_START: &str = "<!-- agentbriefer:managed:start -->";
+const MARKER_END: &str = "<!-- agentbriefer:managed:end -->";
 
-/// Runs `skillforge sync` in the current directory.
+/// Runs `agentbriefer sync` in the current directory.
 pub fn run() -> Result<()> {
     let root = std::env::current_dir().context("failed to resolve the current directory")?;
     let config_path = root.join(config::CONFIG_FILE_NAME);
 
     let config = config::load(&config_path).with_context(|| {
         format!(
-            "no {} found — run `skillforge init` first",
+            "no {} found — run `agentbriefer init` first",
             config::CONFIG_FILE_NAME
         )
     })?;
@@ -51,7 +51,7 @@ pub fn run() -> Result<()> {
 /// Renders and merges every format in `config.outputs` into its output
 /// file, relative to `root`. Kept separate from [`run`] so it can be
 /// exercised in tests against a temporary directory.
-fn sync(root: &Path, config: &SkillforgeConfig, renderer: &Renderer) -> Result<OutputReport> {
+fn sync(root: &Path, config: &AgentbrieferConfig, renderer: &Renderer) -> Result<OutputReport> {
     let mut report = OutputReport::default();
 
     for &format in &config.outputs {
@@ -169,8 +169,8 @@ mod tests {
         OutputFormat, ProjectProfile, ProjectType, SecurityLevel, Stack, TestingLevel,
     };
 
-    fn sample_config() -> SkillforgeConfig {
-        SkillforgeConfig {
+    fn sample_config() -> AgentbrieferConfig {
+        AgentbrieferConfig {
             extends: None,
             developer: DeveloperProfile {
                 style: DeveloperStyle::Practical,

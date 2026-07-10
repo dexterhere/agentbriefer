@@ -11,12 +11,8 @@ ci = "github"
 installers = ["shell", "powershell", "npm"]
 # Actually publish the npm package to the registry (not just build it)
 publish-jobs = ["npm"]
-# "skillforge" and "skillforge-cli" are both already taken by unrelated
-# packages, and the unscoped "skill-forge-cli" was rejected by npm's
-# anti-squatting check as too similar to "skillforge-cli". Scoping to the
-# GitHub/npm username avoids collision entirely, regardless of similarity.
-npm-scope = "@dexterhere"
-npm-package = "skillforge"
+# Confirmed available unscoped on npm/crates.io/GitHub -- no scope needed.
+npm-package = "agentbriefer"
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Path that installers should place binaries in

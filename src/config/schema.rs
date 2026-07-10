@@ -1,12 +1,12 @@
-//! Data model for `skillforge.yaml`.
+//! Data model for `agentbriefer.yaml`.
 
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
-/// Root configuration for a project, as read from `skillforge.yaml`.
+/// Root configuration for a project, as read from `agentbriefer.yaml`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SkillforgeConfig {
-    /// Name of a reusable developer profile (under `~/.config/skillforge/profiles/`)
+pub struct AgentbrieferConfig {
+    /// Name of a reusable developer profile (under `~/.config/agentbriefer/profiles/`)
     /// that this config extends. `None` means the config is fully self-contained.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extends: Option<String>,
@@ -25,7 +25,7 @@ pub struct SkillforgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_instructions: Option<String>,
 
-    /// Which instruction file formats `skillforge generate` should produce.
+    /// Which instruction file formats `agentbriefer generate` should produce.
     #[serde(default = "OutputFormat::all")]
     pub outputs: Vec<OutputFormat>,
 }
@@ -319,7 +319,7 @@ impl ArchitectureStyle {
     }
 }
 
-/// An AI-agent instruction file format SkillForge can generate.
+/// An AI-agent instruction file format Agentbriefer can generate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumIter)]
 #[serde(rename_all = "kebab-case")]
 #[strum(serialize_all = "kebab-case")]
@@ -357,8 +357,8 @@ mod tests {
     use super::*;
     use strum::IntoEnumIterator;
 
-    fn sample_config() -> SkillforgeConfig {
-        SkillforgeConfig {
+    fn sample_config() -> AgentbrieferConfig {
+        AgentbrieferConfig {
             extends: None,
             developer: DeveloperProfile {
                 style: DeveloperStyle::Practical,
@@ -444,7 +444,7 @@ mod tests {
     fn round_trips_through_yaml() {
         let config = sample_config();
         let yaml = serde_yaml::to_string(&config).unwrap();
-        let parsed: SkillforgeConfig = serde_yaml::from_str(&yaml).unwrap();
+        let parsed: AgentbrieferConfig = serde_yaml::from_str(&yaml).unwrap();
         assert_eq!(config, parsed);
     }
 
@@ -463,7 +463,7 @@ project:
   dependency_policy: allow
   architecture_style: simple
 "#;
-        let parsed: SkillforgeConfig = serde_yaml::from_str(yaml).unwrap();
+        let parsed: AgentbrieferConfig = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(parsed.outputs, OutputFormat::all());
         assert!(parsed.stop_rules.is_empty());
         assert!(parsed.extends.is_none());

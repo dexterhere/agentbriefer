@@ -1,5 +1,5 @@
-//! `skillforge init` — interactive wizard that writes a project's
-//! `skillforge.yaml`.
+//! `agentbriefer init` — interactive wizard that writes a project's
+//! `agentbriefer.yaml`.
 
 use anyhow::{Context, Result};
 use dialoguer::{Confirm, Editor, Input, MultiSelect, Select};
@@ -8,11 +8,11 @@ use strum::IntoEnumIterator;
 use super::prompt::select_enum;
 use super::ui;
 use crate::config::{
-    self, DeveloperProfile, OutputFormat, ProjectProfile, SkillforgeConfig, Stack,
+    self, AgentbrieferConfig, DeveloperProfile, OutputFormat, ProjectProfile, Stack,
 };
 use crate::detect::{self, DetectedStack};
 
-/// Runs `skillforge init` in the current directory.
+/// Runs `agentbriefer init` in the current directory.
 pub fn run() -> Result<()> {
     let root = std::env::current_dir().context("failed to resolve the current directory")?;
     let config_path = root.join(config::CONFIG_FILE_NAME);
@@ -33,7 +33,7 @@ pub fn run() -> Result<()> {
     }
 
     ui::print_banner();
-    println!("Let's configure SkillForge for this project.\n");
+    println!("Let's configure Agentbriefer for this project.\n");
 
     let detected = detect::detect(&root);
     if let Some(source) = &detected.source {
@@ -57,10 +57,10 @@ pub fn run() -> Result<()> {
     );
     let custom_instructions = ask_custom_instructions(None)?;
 
-    ui::hint("Which instruction files `skillforge generate`/`sync` should produce.");
+    ui::hint("Which instruction files `agentbriefer generate`/`sync` should produce.");
     let outputs = select_outputs()?;
 
-    let mut config = SkillforgeConfig {
+    let mut config = AgentbrieferConfig {
         extends,
         developer,
         project,
@@ -75,7 +75,7 @@ pub fn run() -> Result<()> {
         .with_context(|| format!("failed to write {}", config_path.display()))?;
 
     ui::success(&format!(
-        "\nWrote {}. Run `skillforge generate` to produce instruction files.",
+        "\nWrote {}. Run `agentbriefer generate` to produce instruction files.",
         config::CONFIG_FILE_NAME
     ));
 
@@ -153,7 +153,7 @@ fn ask_project_profile(detected: &DetectedStack) -> Result<ProjectProfile> {
 /// entry; picking a field re-runs that field's own prompt — pre-filled
 /// with its *current* value, not blank — and loops back here, so any
 /// earlier answer can be changed before saving.
-fn review_and_edit(config: &mut SkillforgeConfig) -> Result<()> {
+fn review_and_edit(config: &mut AgentbrieferConfig) -> Result<()> {
     loop {
         let items = menu_items(config);
 
@@ -244,7 +244,7 @@ fn review_and_edit(config: &mut SkillforgeConfig) -> Result<()> {
 
 /// Builds the review menu's labels from `config`'s current values. Pure
 /// (no I/O) so it's unit-testable without a terminal.
-fn menu_items(config: &SkillforgeConfig) -> Vec<String> {
+fn menu_items(config: &AgentbrieferConfig) -> Vec<String> {
     let stack = &config.project.stack;
 
     vec![
@@ -299,7 +299,7 @@ fn menu_items(config: &SkillforgeConfig) -> Vec<String> {
 }
 
 /// Asks whether to pre-fill the developer profile from a saved one (see
-/// `skillforge profile create`), or answer the two questions now. Returns
+/// `agentbriefer profile create`), or answer the two questions now. Returns
 /// the resulting profile and the saved profile's name, if one was used.
 fn pick_developer_profile() -> Result<(DeveloperProfile, Option<String>)> {
     let dir = super::profile::profiles_dir()?;
@@ -452,7 +452,7 @@ fn select_outputs() -> Result<Vec<OutputFormat>> {
     let defaults = vec![true; variants.len()];
 
     let selected = MultiSelect::with_theme(&ui::theme())
-        .with_prompt("Which instruction files should `skillforge generate` produce?")
+        .with_prompt("Which instruction files should `agentbriefer generate` produce?")
         .items(&labels)
         .defaults(&defaults)
         .interact()?;
@@ -468,8 +468,8 @@ mod tests {
         SecurityLevel, TestingLevel,
     };
 
-    fn sample_config() -> SkillforgeConfig {
-        SkillforgeConfig {
+    fn sample_config() -> AgentbrieferConfig {
+        AgentbrieferConfig {
             extends: None,
             developer: DeveloperProfile {
                 style: DeveloperStyle::Practical,

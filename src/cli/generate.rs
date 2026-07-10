@@ -1,4 +1,4 @@
-//! `skillforge generate` — renders every configured output format into the
+//! `agentbriefer generate` — renders every configured output format into the
 //! current project.
 
 use std::fs;
@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 
 use super::ui;
-use crate::config::{self, OutputFormat, SkillforgeConfig};
+use crate::config::{self, AgentbrieferConfig, OutputFormat};
 use crate::render::Renderer;
 
 /// Outcome of a `generate` or `sync` pass: which formats were written
@@ -18,14 +18,14 @@ pub struct OutputReport {
     pub failed: Vec<(OutputFormat, String)>,
 }
 
-/// Runs `skillforge generate` in the current directory.
+/// Runs `agentbriefer generate` in the current directory.
 pub fn run() -> Result<()> {
     let root = std::env::current_dir().context("failed to resolve the current directory")?;
     let config_path = root.join(config::CONFIG_FILE_NAME);
 
     let config = config::load(&config_path).with_context(|| {
         format!(
-            "no {} found — run `skillforge init` first",
+            "no {} found — run `agentbriefer init` first",
             config::CONFIG_FILE_NAME
         )
     })?;
@@ -48,7 +48,7 @@ pub fn run() -> Result<()> {
 ///
 /// Kept separate from [`run`] so it can be exercised in tests against a
 /// temporary directory instead of the real current working directory.
-fn generate(root: &Path, config: &SkillforgeConfig, renderer: &Renderer) -> Result<OutputReport> {
+fn generate(root: &Path, config: &AgentbrieferConfig, renderer: &Renderer) -> Result<OutputReport> {
     let mut report = OutputReport::default();
 
     for &format in &config.outputs {
@@ -80,7 +80,7 @@ pub(super) fn output_path(format: OutputFormat) -> PathBuf {
     match format {
         OutputFormat::ClaudeMd => PathBuf::from("CLAUDE.md"),
         OutputFormat::AgentsMd => PathBuf::from("AGENTS.md"),
-        OutputFormat::CursorRules => PathBuf::from(".cursor/rules/skillforge.mdc"),
+        OutputFormat::CursorRules => PathBuf::from(".cursor/rules/agentbriefer.mdc"),
         OutputFormat::CopilotInstructions => PathBuf::from(".github/copilot-instructions.md"),
     }
 }
@@ -111,8 +111,8 @@ mod tests {
         ProjectProfile, ProjectType, SecurityLevel, Stack, TestingLevel,
     };
 
-    fn sample_config() -> SkillforgeConfig {
-        SkillforgeConfig {
+    fn sample_config() -> AgentbrieferConfig {
+        AgentbrieferConfig {
             extends: None,
             developer: DeveloperProfile {
                 style: DeveloperStyle::Practical,
@@ -151,7 +151,7 @@ mod tests {
         );
         assert_eq!(
             output_path(OutputFormat::CursorRules),
-            PathBuf::from(".cursor/rules/skillforge.mdc")
+            PathBuf::from(".cursor/rules/agentbriefer.mdc")
         );
         assert_eq!(
             output_path(OutputFormat::CopilotInstructions),

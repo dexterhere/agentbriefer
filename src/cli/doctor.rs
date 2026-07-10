@@ -1,4 +1,4 @@
-//! `skillforge doctor` — a small, read-only linter over the current
+//! `agentbriefer doctor` — a small, read-only linter over the current
 //! project's configuration and generated files.
 
 use std::fs;
@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use super::generate::output_path;
 use super::sync::{find_managed_block, managed_block, split_frontmatter};
 use super::ui;
-use crate::config::{self, DependencyPolicy, SecurityLevel, SkillforgeConfig, TestingLevel};
+use crate::config::{self, AgentbrieferConfig, DependencyPolicy, SecurityLevel, TestingLevel};
 use crate::render::Renderer;
 
 /// Findings from a doctor pass. Kept as a flat list of human-readable
@@ -19,14 +19,14 @@ pub struct DoctorReport {
     pub findings: Vec<String>,
 }
 
-/// Runs `skillforge doctor` in the current directory.
+/// Runs `agentbriefer doctor` in the current directory.
 pub fn run() -> Result<()> {
     let root = std::env::current_dir().context("failed to resolve the current directory")?;
     let config_path = root.join(config::CONFIG_FILE_NAME);
 
     let config = config::load(&config_path).with_context(|| {
         format!(
-            "no {} found — run `skillforge init` first",
+            "no {} found — run `agentbriefer init` first",
             config::CONFIG_FILE_NAME
         )
     })?;
@@ -49,7 +49,7 @@ pub fn run() -> Result<()> {
 /// Runs every check against `config` and the files under `root`. Kept
 /// separate from [`run`] so it can be exercised in tests against a
 /// temporary directory.
-fn doctor(root: &Path, config: &SkillforgeConfig, renderer: &Renderer) -> Result<DoctorReport> {
+fn doctor(root: &Path, config: &AgentbrieferConfig, renderer: &Renderer) -> Result<DoctorReport> {
     let mut findings = Vec::new();
 
     check_conflicting_settings(config, &mut findings);
@@ -59,7 +59,7 @@ fn doctor(root: &Path, config: &SkillforgeConfig, renderer: &Renderer) -> Result
     Ok(DoctorReport { findings })
 }
 
-fn check_conflicting_settings(config: &SkillforgeConfig, findings: &mut Vec<String>) {
+fn check_conflicting_settings(config: &AgentbrieferConfig, findings: &mut Vec<String>) {
     let project = &config.project;
 
     if project.dependency_policy == DependencyPolicy::Allow
@@ -82,17 +82,17 @@ fn check_conflicting_settings(config: &SkillforgeConfig, findings: &mut Vec<Stri
     }
 }
 
-fn check_missing_fields(config: &SkillforgeConfig, findings: &mut Vec<String>) {
+fn check_missing_fields(config: &AgentbrieferConfig, findings: &mut Vec<String>) {
     if config.project.stack.language.trim().is_empty() {
         findings.push(
-            "project.stack.language is empty — edit skillforge.yaml or run `skillforge init` again.".to_string(),
+            "project.stack.language is empty — edit agentbriefer.yaml or run `agentbriefer init` again.".to_string(),
         );
     }
 }
 
 fn check_generated_files(
     root: &Path,
-    config: &SkillforgeConfig,
+    config: &AgentbrieferConfig,
     renderer: &Renderer,
     findings: &mut Vec<String>,
 ) -> Result<()> {
@@ -101,8 +101,8 @@ fn check_generated_files(
 
         if !path.exists() {
             findings.push(format!(
-                "{format} is configured but hasn't been generated yet — run `skillforge generate` or \
-                 `skillforge sync`."
+                "{format} is configured but hasn't been generated yet — run `agentbriefer generate` or \
+                 `agentbriefer sync`."
             ));
             continue;
         }
@@ -118,7 +118,7 @@ fn check_generated_files(
 
         if is_stale(&existing, &rendered) {
             findings.push(format!(
-                "{format} is out of sync with the current configuration — run `skillforge sync` to update it."
+                "{format} is out of sync with the current configuration — run `agentbriefer sync` to update it."
             ));
         }
     }
@@ -147,8 +147,8 @@ mod tests {
         ProjectProfile, ProjectType, Stack,
     };
 
-    fn sample_config() -> SkillforgeConfig {
-        SkillforgeConfig {
+    fn sample_config() -> AgentbrieferConfig {
+        AgentbrieferConfig {
             extends: None,
             developer: DeveloperProfile {
                 style: DeveloperStyle::Practical,

@@ -1,6 +1,6 @@
 //! Detects a project's language, package manager, framework, testing
 //! tools, and key dependencies from real manifest files (`Cargo.toml`,
-//! `package.json`, `go.mod`), so `skillforge init` can pre-fill its stack
+//! `package.json`, `go.mod`), so `agentbriefer init` can pre-fill its stack
 //! questions instead of starting from a blank field.
 //!
 //! Environment-agnostic in spirit but not in practice: unlike `config`,

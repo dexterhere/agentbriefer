@@ -1,4 +1,4 @@
-//! Black-box tests that spawn the actual compiled `skillforge` binary,
+//! Black-box tests that spawn the actual compiled `agentbriefer` binary,
 //! unlike every other test in this crate (which calls internal functions
 //! directly). Covers the non-interactive commands only — `init` and
 //! `profile create`/`switch` need a real terminal for `dialoguer`'s raw
@@ -27,31 +27,31 @@ project:
 stop_rules: []
 ";
 
-fn skillforge() -> Command {
-    Command::cargo_bin("skillforge").unwrap()
+fn agentbriefer() -> Command {
+    Command::cargo_bin("agentbriefer").unwrap()
 }
 
 /// Isolates `profile`-family commands from the real developer's
-/// `~/.config/skillforge/profiles/` — every test must call this rather than
+/// `~/.config/agentbriefer/profiles/` — every test must call this rather than
 /// ever touching that directory.
 fn isolate_profiles_dir(cmd: &mut Command, config_home: &Path) {
     cmd.env("XDG_CONFIG_HOME", config_home);
 }
 
 fn write_config(root: &Path) {
-    fs::write(root.join("skillforge.yaml"), SAMPLE_CONFIG).unwrap();
+    fs::write(root.join("agentbriefer.yaml"), SAMPLE_CONFIG).unwrap();
 }
 
 #[test]
 fn generate_without_a_config_fails_with_a_helpful_hint() {
     let dir = tempdir().unwrap();
 
-    skillforge()
+    agentbriefer()
         .current_dir(dir.path())
         .arg("generate")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("skillforge init"));
+        .stderr(predicate::str::contains("agentbriefer init"));
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn generate_writes_all_four_output_files() {
     let dir = tempdir().unwrap();
     write_config(dir.path());
 
-    skillforge()
+    agentbriefer()
         .current_dir(dir.path())
         .arg("generate")
         .assert()
@@ -68,7 +68,7 @@ fn generate_writes_all_four_output_files() {
     for path in [
         "CLAUDE.md",
         "AGENTS.md",
-        ".cursor/rules/skillforge.mdc",
+        ".cursor/rules/agentbriefer.mdc",
         ".github/copilot-instructions.md",
     ] {
         let content = fs::read_to_string(dir.path().join(path))
@@ -82,7 +82,7 @@ fn sync_preserves_manual_edits_outside_the_managed_block_on_resync() {
     let dir = tempdir().unwrap();
     write_config(dir.path());
 
-    skillforge()
+    agentbriefer()
         .current_dir(dir.path())
         .arg("sync")
         .assert()
@@ -93,7 +93,7 @@ fn sync_preserves_manual_edits_outside_the_managed_block_on_resync() {
     let with_manual_notes = format!("My own manual notes.\n\n{synced}");
     fs::write(&claude_md, with_manual_notes).unwrap();
 
-    skillforge()
+    agentbriefer()
         .current_dir(dir.path())
         .arg("sync")
         .assert()
@@ -108,7 +108,7 @@ fn sync_preserves_manual_edits_outside_the_managed_block_on_resync() {
 fn doctor_flags_conflicting_security_and_dependency_settings() {
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("skillforge.yaml"),
+        dir.path().join("agentbriefer.yaml"),
         SAMPLE_CONFIG
             .replace("security_level: standard", "security_level: strict")
             .replace(
@@ -118,7 +118,7 @@ fn doctor_flags_conflicting_security_and_dependency_settings() {
     )
     .unwrap();
 
-    skillforge()
+    agentbriefer()
         .current_dir(dir.path())
         .arg("doctor")
         .assert()
@@ -131,13 +131,13 @@ fn doctor_reports_no_issues_once_generated_and_in_sync() {
     let dir = tempdir().unwrap();
     write_config(dir.path());
 
-    skillforge()
+    agentbriefer()
         .current_dir(dir.path())
         .arg("generate")
         .assert()
         .success();
 
-    skillforge()
+    agentbriefer()
         .current_dir(dir.path())
         .arg("doctor")
         .assert()
@@ -150,7 +150,7 @@ fn profile_list_hints_when_no_profiles_are_saved_yet() {
     let dir = tempdir().unwrap();
     let config_home = tempdir().unwrap();
 
-    let mut cmd = skillforge();
+    let mut cmd = agentbriefer();
     cmd.current_dir(dir.path()).arg("profile").arg("list");
     isolate_profiles_dir(&mut cmd, config_home.path());
 

@@ -1,4 +1,4 @@
-//! Subcommand implementations for the `skillforge` binary.
+//! Subcommand implementations for the `agentbriefer` binary.
 
 mod doctor;
 mod generate;
