@@ -7,10 +7,12 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use super::generate::output_path;
-use super::sync::{find_managed_block, managed_block, split_frontmatter};
+use super::sync::{find_managed_block, managed_block};
 use super::ui;
 use crate::config::{self, AgentbrieferConfig, DependencyPolicy, SecurityLevel, TestingLevel};
 use crate::render::Renderer;
+use crate::skills::SkillRegistry;
+use crate::textutil::split_frontmatter;
 
 /// Findings from a doctor pass. Kept as a flat list of human-readable
 /// strings — v1 doesn't need severity levels to be useful.
@@ -32,8 +34,9 @@ pub fn run() -> Result<()> {
     })?;
 
     let renderer = Renderer::new().context("failed to initialize the template engine")?;
+    let registry = SkillRegistry::load().context("failed to load the bundled skill catalog")?;
 
-    let report = doctor(&root, &config, &renderer)?;
+    let report = doctor(&root, &config, &renderer, &registry)?;
 
     if report.findings.is_empty() {
         ui::success("No issues found.");
@@ -49,14 +52,43 @@ pub fn run() -> Result<()> {
 /// Runs every check against `config` and the files under `root`. Kept
 /// separate from [`run`] so it can be exercised in tests against a
 /// temporary directory.
-fn doctor(root: &Path, config: &AgentbrieferConfig, renderer: &Renderer) -> Result<DoctorReport> {
+fn doctor(
+    root: &Path,
+    config: &AgentbrieferConfig,
+    renderer: &Renderer,
+    registry: &SkillRegistry,
+) -> Result<DoctorReport> {
     let mut findings = Vec::new();
 
     check_conflicting_settings(config, &mut findings);
     check_missing_fields(config, &mut findings);
+    check_unknown_skill_ids(config, registry, &mut findings);
     check_generated_files(root, config, renderer, &mut findings)?;
 
     Ok(DoctorReport { findings })
+}
+
+/// Flags any id in `config.skills` that isn't in the bundled catalog — e.g.
+/// a teammate's newer CLI added a skill and this machine's CLI predates it,
+/// or the id was hand-typed into `agentbriefer.yaml` and misspelled. A soft
+/// finding, not a hard error: `render`/`sync` already skip unknown ids
+/// silently rather than failing outright, since a whole team's `generate`
+/// breaking the moment one person's CLI binary is older than a teammate's
+/// config would defeat the point of sharing `agentbriefer.yaml`.
+fn check_unknown_skill_ids(
+    config: &AgentbrieferConfig,
+    registry: &SkillRegistry,
+    findings: &mut Vec<String>,
+) {
+    for id in &config.skills {
+        if !registry.contains(id) {
+            findings.push(format!(
+                "skill '{id}' is configured but not found in the bundled catalog — update \
+                 agentbriefer to a version that includes it, or remove it with \
+                 `agentbriefer skill remove {id}`."
+            ));
+        }
+    }
 }
 
 fn check_conflicting_settings(config: &AgentbrieferConfig, findings: &mut Vec<String>) {
@@ -172,6 +204,7 @@ mod tests {
             stop_rules: vec![],
             custom_instructions: None,
             outputs: OutputFormat::all(),
+            skills: vec![],
         }
     }
 
@@ -236,9 +269,10 @@ mod tests {
     fn flags_outputs_that_have_never_been_generated() {
         let dir = tempfile::tempdir().unwrap();
         let renderer = Renderer::new().unwrap();
+        let registry = SkillRegistry::load().unwrap();
         let config = sample_config();
 
-        let report = doctor(dir.path(), &config, &renderer).unwrap();
+        let report = doctor(dir.path(), &config, &renderer, &registry).unwrap();
 
         assert_eq!(
             report.findings.len(),
@@ -258,6 +292,7 @@ mod tests {
     fn does_not_flag_a_freshly_synced_file() {
         let dir = tempfile::tempdir().unwrap();
         let renderer = Renderer::new().unwrap();
+        let registry = SkillRegistry::load().unwrap();
         let mut config = sample_config();
         config.outputs = vec![OutputFormat::ClaudeMd];
 
@@ -271,7 +306,7 @@ mod tests {
         )
         .unwrap();
 
-        let report = doctor(dir.path(), &config, &renderer).unwrap();
+        let report = doctor(dir.path(), &config, &renderer, &registry).unwrap();
 
         assert!(
             report.findings.is_empty(),
@@ -284,6 +319,7 @@ mod tests {
     fn flags_a_stale_managed_block() {
         let dir = tempfile::tempdir().unwrap();
         let renderer = Renderer::new().unwrap();
+        let registry = SkillRegistry::load().unwrap();
         let mut config = sample_config();
         config.outputs = vec![OutputFormat::ClaudeMd];
 
@@ -293,8 +329,42 @@ mod tests {
         )
         .unwrap();
 
-        let report = doctor(dir.path(), &config, &renderer).unwrap();
+        let report = doctor(dir.path(), &config, &renderer, &registry).unwrap();
 
         assert!(report.findings.iter().any(|f| f.contains("out of sync")));
+    }
+
+    #[test]
+    fn flags_a_configured_skill_id_that_is_not_in_the_bundled_catalog() {
+        let mut config = sample_config();
+        config.skills = vec!["not-a-real-skill".to_string()];
+        let registry = SkillRegistry::load().unwrap();
+        let mut findings = Vec::new();
+
+        check_unknown_skill_ids(&config, &registry, &mut findings);
+
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.contains("not-a-real-skill") && f.contains("skill remove"))
+        );
+    }
+
+    #[test]
+    fn does_not_flag_a_skill_id_that_is_in_the_bundled_catalog() {
+        let registry = SkillRegistry::load().unwrap();
+        let real_id = registry
+            .all()
+            .first()
+            .expect("the bundled catalog should ship with at least one seed skill")
+            .id
+            .clone();
+        let mut config = sample_config();
+        config.skills = vec![real_id];
+        let mut findings = Vec::new();
+
+        check_unknown_skill_ids(&config, &registry, &mut findings);
+
+        assert!(findings.is_empty());
     }
 }
