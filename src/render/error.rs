@@ -19,4 +19,7 @@ pub enum RenderError {
         #[source]
         source: tera::Error,
     },
+
+    #[error("failed to load the bundled skill catalog")]
+    Skills(#[source] crate::skills::SkillError),
 }
