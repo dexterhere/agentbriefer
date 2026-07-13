@@ -166,7 +166,9 @@ fn materialize_skills(
 /// or the process's current directory.
 fn validate_known_skill(id: &str, registry: &SkillRegistry) -> Result<()> {
     if !registry.contains(id) {
-        bail!("'{id}' is not a known skill — run `agentbriefer skill list` to see what's available");
+        bail!(
+            "'{id}' is not a known skill — run `agentbriefer skill list` to see what's available"
+        );
     }
 
     Ok(())
@@ -184,9 +186,12 @@ pub fn run_list(role: Option<String>, recommended: bool) -> Result<()> {
     let installed = try_load_config(&root).map(|c| c.skills).unwrap_or_default();
 
     let detected = recommended.then(|| detect::detect(&root));
-    let recommended_ids: Option<HashSet<&str>> = detected
-        .as_ref()
-        .map(|detected| registry.recommended_for(detected).map(|s| s.id.as_str()).collect());
+    let recommended_ids: Option<HashSet<&str>> = detected.as_ref().map(|detected| {
+        registry
+            .recommended_for(detected)
+            .map(|s| s.id.as_str())
+            .collect()
+    });
 
     let candidates: Vec<&Skill> = registry
         .all()
@@ -325,7 +330,9 @@ pub fn run_info(id: &str) -> Result<()> {
     let registry = SkillRegistry::load().context("failed to load the bundled skill catalog")?;
 
     let skill = registry.get(id).with_context(|| {
-        format!("'{id}' is not a known skill — run `agentbriefer skill list` to see what's available")
+        format!(
+            "'{id}' is not a known skill — run `agentbriefer skill list` to see what's available"
+        )
     })?;
 
     println!("{} ({})", skill.name, skill.id);

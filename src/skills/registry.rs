@@ -34,8 +34,7 @@ impl SkillRegistry {
                 continue;
             }
 
-            let file =
-                SkillAssets::get(&name).expect("name came from iter(), get() must find it");
+            let file = SkillAssets::get(&name).expect("name came from iter(), get() must find it");
             let content = std::str::from_utf8(&file.data).map_err(|_| SkillError::InvalidUtf8 {
                 name: name.to_string(),
             })?;

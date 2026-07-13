@@ -140,7 +140,11 @@ struct InstalledSkillView<'a> {
 /// whole team's `generate`/`sync` the moment one person's CLI binary is
 /// older than a teammate's `agentbriefer.yaml`. `doctor` is the layer
 /// responsible for surfacing that mismatch as a finding.
-fn insert_installed_skills(context: &mut Context, config: &AgentbrieferConfig, registry: &SkillRegistry) {
+fn insert_installed_skills(
+    context: &mut Context,
+    config: &AgentbrieferConfig,
+    registry: &SkillRegistry,
+) {
     let views: Vec<InstalledSkillView> = config
         .skills
         .iter()
