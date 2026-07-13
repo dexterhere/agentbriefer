@@ -70,6 +70,7 @@ mod tests {
             stop_rules: vec![],
             custom_instructions: None,
             outputs: OutputFormat::all(),
+            skills: vec![],
         }
     }
 

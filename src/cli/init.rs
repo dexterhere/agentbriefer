@@ -67,6 +67,7 @@ pub fn run() -> Result<()> {
         stop_rules,
         custom_instructions,
         outputs,
+        skills: Vec::new(),
     };
 
     review_and_edit(&mut config)?;
@@ -493,6 +494,7 @@ mod tests {
             stop_rules: vec![],
             custom_instructions: None,
             outputs: vec![OutputFormat::ClaudeMd],
+            skills: vec![],
         }
     }
 

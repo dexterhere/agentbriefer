@@ -1,123 +1,87 @@
 # Architecture
 
-Agentbriefer CLI is split into three layers. Each layer only depends on the
-one "below" it — this is enforced by convention, not by a build tool, but
-it's consistent throughout the codebase:
+Agentbriefer is a Rust CLI that turns typed project policy and embedded skills into native AI-agent
+instruction files. Pure subsystems return data or text; the CLI layer owns prompting and real writes.
 
 ```mermaid
 flowchart TD
-    YAML[agentbriefer.yaml]
-    CLI["cli layer<br/>5 commands, all I/O"]
-    OUT["Output files<br/>CLAUDE.md + 3 more"]
-    CONFIG["config layer<br/>parses &amp; saves YAML"]
-    RENDER["render layer<br/>Tera templates to text"]
-
-    YAML --> CONFIG
+    MANIFESTS[Project manifests] --> DETECT[src/detect]
+    USER[Interactive input] --> CLI[src/cli]
+    DETECT --> CLI
+    YAML[agentbriefer.yaml] <--> CONFIG[src/config]
     CLI --> CONFIG
-    CLI --> RENDER
+    SKILLFILES[skills/**/SKILL.md] --> SKILLS[src/skills]
+    SKILLS --> RENDER[src/render]
     CONFIG --> RENDER
-    CLI --> OUT
+    TEMPLATES[templates/*.tera] --> RENDER
+    RENDER --> CLI
+    CLI --> OUTPUTS[CLAUDE.md + AGENTS.md + Cursor + Copilot]
 ```
 
-## The three layers
+## Subsystems
 
-### `config` — data model + YAML I/O
+### `src/config`
 
-`src/config/` (`schema.rs`, `loader.rs`, `error.rs`). Defines
-`AgentbrieferConfig`, `DeveloperProfile`, `ProjectProfile`, `Stack`, and the
-seven config enums, all deriving `serde::{Serialize, Deserialize}` and
-`strum::{Display, EnumIter}`. `loader::load`/`loader::save` are generic over
-any serializable type — the same two functions read/write both
-`agentbriefer.yaml` and the profile files under `~/.config/agentbriefer/profiles/`.
+Defines `AgentbrieferConfig`, developer and project profiles, stack context, policy enums, and output
+formats. Its loader serializes typed data to and from YAML paths. It does not prompt or decide where
+a project lives.
 
-This layer has **no dependency on the filesystem location, the terminal, or
-templates.** It only knows how to turn a `Path` into a typed value and back.
-That's what makes it fully unit-testable without a tempdir workaround for
-every test — see `config::loader`'s tests for the pattern.
+### `src/detect`
 
-### `render` — turns a config into text
+Contains 28 ecosystem detectors. Each reads a root-level manifest and returns a `DetectedStack` with
+language, framework, database, package manager, testing tools, and key dependencies when reliable.
+Detection is ordered, non-recursive, read-only, and tolerant of malformed manifests.
 
-`src/render/` (`engine.rs`, `error.rs`). `Renderer::new()` registers every
-`.tera` file (via `rust-embed`) into one `tera::Tera` instance — done once,
-reused across every render call, since parsing templates is real work.
-`Renderer::render_output(format, config)` builds a `tera::Context` straight
-from the config via `Context::from_serialize` (works for free because every
-config type already derives `Serialize`) and renders the template that
-`OutputFormat::template_name()` maps to.
+### `src/skills`
 
-This layer depends on `config` (it renders a `AgentbrieferConfig`), but knows
-nothing about *where* that config came from or where the rendered text will
-be written.
+Uses `rust-embed` to load `skills/**/SKILL.md`. The registry parses frontmatter and body, validates
+that each declared ID matches its directory, sorts skills by ID, and supports role and detected-stack
+queries. An empty `compatible_stacks` list means stack-agnostic.
 
-### `cli` — commands, prompts, and all real I/O
+### `src/render`
 
-`src/cli/` — one file per command (`init.rs`, `generate.rs`, `sync.rs`,
-`doctor.rs`, `profile.rs`), plus two shared helpers (`prompt.rs` for the
-enum-picker prompt, `ui.rs` for color/hints/the banner). This is the
-**only** layer that touches `std::env::current_dir()`, stdin, or
-`~/.config` — every command resolves those for real, then calls into
-`config`/`render` with plain, injectable `Path`/`AgentbrieferConfig` values so
-the interesting logic stays testable against a tempdir instead of the real
-filesystem.
+Registers embedded Tera templates once and renders a selected `OutputFormat` from serialized config
+plus resolved skills. Shared partials keep the decision loop, workflow loops, stop rules, and project
+summary aligned across output wrappers.
 
-## Templates
+### `src/cli`
 
-```
-templates/
-├── partials/                  shared across all four output formats
-│   ├── config_summary.tera    developer/project profile display
-│   ├── decision_loop.tera     the adaptive decision-loop questions
-│   ├── workflow_loops.tera    the six workflow loops
-│   └── stop_rules.tera        configured stop rules (with a sensible default)
-├── claude.md.tera
-├── agents.md.tera
-├── cursor_rules.tera
-└── copilot_instructions.tera
-```
+Owns clap dispatch, dialoguer prompts, terminal UI, current-directory lookup, platform user-data
+paths, and all project writes. Command modules compose the pure subsystems:
 
-Every top-level template is just a format-specific header (and, for Cursor,
-YAML frontmatter) plus four `{% include %}`s. The philosophy text — the
-decision loop, the workflow loops — exists exactly once, so it can't drift
-into four slightly-different copies over time.
+- `init` detects context and writes `agentbriefer.yaml` after interactive review;
+- `generate` fully replaces configured outputs and reports success per format;
+- `sync` replaces only line-delimited managed blocks, keeping Cursor frontmatter first;
+- `doctor` reports conflicts, missing values, unknown skills, missing files, and render drift;
+- `profile` stores personal developer preference snapshots;
+- `skill` manages bundled skill IDs, generated local copies, and reusable skill-set snapshots.
 
-`rust-embed` reads `templates/` straight off disk on every call in debug
-builds (edit content, no recompile) and bakes the files into the binary at
-compile time in release builds — no feature flags needed for either
-behavior, it's the crate's default.
+### `src/textutil.rs`
 
-## How each command actually flows
+Holds shared frontmatter splitting used by embedded skills and Cursor synchronization.
 
-**`init`** — the only command that doesn't touch `render` at all. Walks
-the config questions (optionally pre-filling the developer style from a
-saved profile), shows a review-and-edit menu built from the config's
-current values, then calls `config::save`.
+## Embedded and local data
 
-**`generate`** — `config::load` the project's `agentbriefer.yaml`, build one
-`Renderer`, and for each configured output: render it, and on success write
-it to its real path (creating parent directories like `.cursor/rules/` as
-needed). A rendering failure for one format (e.g. a template that doesn't
-exist yet) is recorded and reported, not treated as fatal — the other
-formats still get written.
+`rust-embed` reads `templates/` and `skills/` directly in debug builds and packages them into release
+binaries. A release therefore has no runtime asset dependency.
 
-**`sync`** — the same render pass as `generate`, but the write step is
-different: it splits the rendered output into `(frontmatter, body)`
-(frontmatter must stay the literal first bytes of a file for Cursor's
-`.mdc` parser to work), wraps `body` in
-`<!-- agentbriefer:managed:start/end -->` markers, and — if the file already
-has those markers — replaces only the byte range between them, leaving
-everything else in the file untouched.
+Installed project skills are generated under `.agentbriefer/skills/<id>/SKILL.md`. Developer profiles
+and skill profiles live in the platform-standard per-user configuration directory resolved by the
+`directories` crate. Both profile types are copied snapshots, not live inheritance.
 
-**`doctor`** — read-only. Checks the config directly for conflicting
-settings (e.g. `dependency_policy: allow` with `security_level: strict`)
-and missing fields, then for each configured output: is the file missing
-entirely, or does a fresh render disagree with what's on disk? The second
-check reuses `sync`'s own marker-parsing helpers rather than inventing a
-separate staleness mechanism — "out of sync" concretely means "running
-`sync` right now would change this file."
+## Safety boundaries
 
-**`profile`** — `list`/`create`/`switch` operate on
-`~/.config/agentbriefer/profiles/*.yaml`, resolved via the `directories`
-crate. A profile is just a saved `DeveloperProfile` (two fields); `switch`
-loads one and overwrites the *current* project's `developer:` section.
-Profiles are a pre-fill/copy source, not a live reference — editing a saved
-profile later doesn't retroactively change projects that already used it.
+- `generate` is intentionally a full overwrite; `sync` is the preservation path.
+- Managed markers are recognized only as standalone lines.
+- Final output paths that are symbolic links are refused.
+- Unknown skill IDs are reported by `doctor` and skipped during materialization/render resolution.
+- A failure in one output format is reported without preventing other formats from being written.
+
+## Tests
+
+Module unit tests cover schemas, detectors, parsing, marker logic, and filesystem helpers.
+`tests/cli_integration.rs` exercises compiled CLI workflows, while `insta` snapshots protect rendered
+output. CI runs formatting, Clippy with warnings denied, and the full Rust test suite.
+
+The versioned contributor documentation contains the companion
+[architecture guide](https://docs.agentbriefer.com/docs/contributing/architecture).

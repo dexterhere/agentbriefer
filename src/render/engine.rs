@@ -2,9 +2,11 @@
 //! builds) and renders them against a [`AgentbrieferConfig`].
 
 use rust_embed::RustEmbed;
+use serde::Serialize;
 use tera::{Context, Tera};
 
 use crate::config::{AgentbrieferConfig, OutputFormat};
+use crate::skills::SkillRegistry;
 
 use super::error::RenderError;
 
@@ -23,6 +25,7 @@ struct TemplateAssets;
 /// reused across multiple `render` calls rather than rebuilt per call.
 pub struct Renderer {
     tera: Tera,
+    skills: SkillRegistry,
 }
 
 impl Renderer {
@@ -52,7 +55,9 @@ impl Renderer {
         tera.add_raw_templates(templates)
             .map_err(RenderError::Load)?;
 
-        Ok(Self { tera })
+        let skills = SkillRegistry::load().map_err(RenderError::Skills)?;
+
+        Ok(Self { tera, skills })
     }
 
     /// Renders the named template against `config`.
@@ -63,6 +68,7 @@ impl Renderer {
     ) -> Result<String, RenderError> {
         let mut context = Context::from_serialize(config).map_err(RenderError::Context)?;
         insert_descriptions(&mut context, config);
+        insert_installed_skills(&mut context, config, &self.skills);
 
         self.tera
             .render(template_name, &context)
@@ -118,6 +124,41 @@ fn insert_descriptions(context: &mut Context, config: &AgentbrieferConfig) {
     );
 }
 
+/// A skill's rendering-relevant fields, exposed to `installed_skills.tera`
+/// as `{{ skill.name }}` / `{{ skill.body }}`.
+#[derive(Serialize)]
+struct InstalledSkillView<'a> {
+    name: &'a str,
+    description: &'a str,
+    body: &'a str,
+}
+
+/// Resolves `config.skills` ids against `registry` and inserts the matches
+/// as `installed_skills` for `partials/installed_skills.tera` to loop over.
+/// An id with no match in the registry is silently skipped here — a stale
+/// or unknown skill id must never fail a render, since that would break a
+/// whole team's `generate`/`sync` the moment one person's CLI binary is
+/// older than a teammate's `agentbriefer.yaml`. `doctor` is the layer
+/// responsible for surfacing that mismatch as a finding.
+fn insert_installed_skills(
+    context: &mut Context,
+    config: &AgentbrieferConfig,
+    registry: &SkillRegistry,
+) {
+    let views: Vec<InstalledSkillView> = config
+        .skills
+        .iter()
+        .filter_map(|id| registry.get(id))
+        .map(|skill| InstalledSkillView {
+            name: &skill.name,
+            description: &skill.description,
+            body: &skill.body,
+        })
+        .collect();
+
+    context.insert("installed_skills", &views);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,6 +192,7 @@ mod tests {
             stop_rules: vec!["Stop before modifying CI/CD configuration".to_string()],
             custom_instructions: None,
             outputs: OutputFormat::all(),
+            skills: vec![],
         }
     }
 
@@ -289,6 +331,46 @@ mod tests {
             .unwrap();
 
         assert!(output.contains("Stop once the requested change is complete"));
+    }
+
+    #[test]
+    fn renders_nothing_for_installed_skills_when_config_skills_is_empty() {
+        let renderer = Renderer::new().unwrap();
+        let config = sample_config();
+
+        let output = renderer
+            .render_output(OutputFormat::ClaudeMd, &config)
+            .unwrap();
+
+        assert!(!output.contains("## Installed Skills"));
+    }
+
+    #[test]
+    fn renders_an_installed_skills_body_when_configured() {
+        let renderer = Renderer::new().unwrap();
+        let mut config = sample_config();
+        config.skills = vec!["server-components-by-default".to_string()];
+
+        let output = renderer
+            .render_output(OutputFormat::ClaudeMd, &config)
+            .unwrap();
+
+        assert!(output.contains("## Installed Skills"));
+        assert!(output.contains("Server Components by Default"));
+        assert!(output.contains("Add `\"use client\"` only where"));
+    }
+
+    #[test]
+    fn skips_an_unknown_configured_skill_id_without_failing_render() {
+        let renderer = Renderer::new().unwrap();
+        let mut config = sample_config();
+        config.skills = vec!["not-a-real-skill".to_string()];
+
+        let output = renderer
+            .render_output(OutputFormat::ClaudeMd, &config)
+            .unwrap();
+
+        assert!(!output.contains("## Installed Skills"));
     }
 
     #[test]

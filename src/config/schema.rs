@@ -18,6 +18,14 @@ pub struct AgentbrieferConfig {
     #[serde(default)]
     pub stop_rules: Vec<String>,
 
+    /// Ids of skills installed into this project (materialized under
+    /// `.agentbriefer/skills/<id>/` and inlined into every generated
+    /// output). Resolved against the CLI's embedded skill catalog at
+    /// generate/sync time — this field only ever holds ids, never skill
+    /// content itself.
+    #[serde(default)]
+    pub skills: Vec<String>,
+
     /// Free-form, project-specific guidance beyond the structured settings
     /// above — the place for whatever doesn't fit a dropdown (a quirky
     /// build step, a library with surprising behavior, a convention unique
@@ -382,6 +390,7 @@ mod tests {
             stop_rules: vec!["Stop before modifying CI/CD configuration".to_string()],
             custom_instructions: None,
             outputs: OutputFormat::all(),
+            skills: vec![],
         }
     }
 
@@ -467,5 +476,6 @@ project:
         assert_eq!(parsed.outputs, OutputFormat::all());
         assert!(parsed.stop_rules.is_empty());
         assert!(parsed.extends.is_none());
+        assert!(parsed.skills.is_empty());
     }
 }
