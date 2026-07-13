@@ -1,0 +1,10 @@
+{% if installed_skills %}
+## Installed Skills
+
+{% for skill in installed_skills -%}
+### {{ skill.name }}
+
+{{ skill.body }}
+
+{% endfor -%}
+{% endif %}

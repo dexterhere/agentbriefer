@@ -11,3 +11,4 @@
 {% include "partials/workflow_loops.tera" %}
 
 {% include "partials/stop_rules.tera" %}
+{% include "partials/installed_skills.tera" %}
