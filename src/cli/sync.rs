@@ -18,6 +18,7 @@ use super::generate::{output_path, refuse_if_symlink};
 use super::ui;
 use crate::config::{self, AgentbrieferConfig};
 use crate::render::Renderer;
+use crate::textutil::split_frontmatter;
 
 const MARKER_START: &str = "<!-- agentbriefer:managed:start -->";
 const MARKER_END: &str = "<!-- agentbriefer:managed:end -->";
@@ -50,8 +51,14 @@ pub fn run() -> Result<()> {
 
 /// Renders and merges every format in `config.outputs` into its output
 /// file, relative to `root`. Kept separate from [`run`] so it can be
-/// exercised in tests against a temporary directory.
-fn sync(root: &Path, config: &AgentbrieferConfig, renderer: &Renderer) -> Result<OutputReport> {
+/// exercised in tests against a temporary directory, and `pub(super)` so
+/// `cli::skill`'s add/remove/update handlers can reuse the same
+/// merge-preserving regeneration after changing `config.skills`.
+pub(super) fn sync(
+    root: &Path,
+    config: &AgentbrieferConfig,
+    renderer: &Renderer,
+) -> Result<OutputReport> {
     let mut report = OutputReport::default();
 
     for &format in &config.outputs {
@@ -107,26 +114,6 @@ fn write_merged(path: &Path, rendered: &str) -> Result<()> {
 /// Wraps `body` in the managed-block markers, as written to disk.
 pub(super) fn managed_block(body: &str) -> String {
     format!("{MARKER_START}\n{body}\n{MARKER_END}\n")
-}
-
-/// Splits a rendered template's leading YAML frontmatter (`---\n...\n---\n`)
-/// from its body. Only `cursor_rules.tera` currently emits frontmatter —
-/// everything else returns an empty frontmatter and the whole string as the
-/// body. Frontmatter must stay the literal first bytes of a `.mdc` file for
-/// Cursor to parse it, so it's kept outside (above) the managed block rather
-/// than wrapped inside it.
-pub(super) fn split_frontmatter(rendered: &str) -> (&str, &str) {
-    let Some(rest) = rendered.strip_prefix("---\n") else {
-        return ("", rendered);
-    };
-
-    match rest.find("\n---\n") {
-        Some(offset) => {
-            let end = "---\n".len() + offset + "\n---\n".len();
-            (&rendered[..end], &rendered[end..])
-        }
-        None => ("", rendered),
-    }
 }
 
 /// Finds the byte offset of `marker`'s first occurrence that sits alone on
@@ -194,27 +181,8 @@ mod tests {
             stop_rules: vec![],
             custom_instructions: None,
             outputs: OutputFormat::all(),
+            skills: vec![],
         }
-    }
-
-    #[test]
-    fn split_frontmatter_extracts_leading_yaml_block() {
-        let rendered = "---\ndescription: x\nalwaysApply: true\n---\n\n# Body\ncontent\n";
-
-        let (frontmatter, body) = split_frontmatter(rendered);
-
-        assert_eq!(frontmatter, "---\ndescription: x\nalwaysApply: true\n---\n");
-        assert_eq!(body, "\n# Body\ncontent\n");
-    }
-
-    #[test]
-    fn split_frontmatter_is_empty_when_there_is_none() {
-        let rendered = "# CLAUDE.md\n\ncontent\n";
-
-        let (frontmatter, body) = split_frontmatter(rendered);
-
-        assert_eq!(frontmatter, "");
-        assert_eq!(body, rendered);
     }
 
     #[test]
