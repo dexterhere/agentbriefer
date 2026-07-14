@@ -84,4 +84,4 @@ Module unit tests cover schemas, detectors, parsing, marker logic, and filesyste
 output. CI runs formatting, Clippy with warnings denied, and the full Rust test suite.
 
 The versioned contributor documentation contains the companion
-[architecture guide](https://docs.agentbriefer.com/docs/contributing/architecture).
+[architecture guide](https://docsagentbriefer.vercel.app/docs/contributing/architecture).

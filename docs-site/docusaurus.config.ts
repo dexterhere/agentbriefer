@@ -6,7 +6,7 @@ const config: Config = {
   title: 'Agentbriefer',
   tagline: 'Configure how AI coding agents think, code, test, and stop.',
   favicon: 'img/agentbriefer-icon.svg',
-  url: 'https://docs.agentbriefer.com',
+  url: 'https://docsagentbriefer.vercel.app',
   baseUrl: '/',
   organizationName: 'dexterhere',
   projectName: 'agentbriefer',
@@ -146,8 +146,8 @@ const config: Config = {
         {
           title: 'AI access',
           items: [
-            {label: 'llms.txt', href: 'https://docs.agentbriefer.com/llms.txt'},
-            {label: 'llms-full.txt', href: 'https://docs.agentbriefer.com/llms-full.txt'},
+            {label: 'llms.txt', href: 'https://docsagentbriefer.vercel.app/llms.txt'},
+            {label: 'llms-full.txt', href: 'https://docsagentbriefer.vercel.app/llms-full.txt'},
           ],
         },
       ],

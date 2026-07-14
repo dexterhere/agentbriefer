@@ -27,7 +27,7 @@ agentbriefer --version
 ```
 
 Also available through GitHub release archives, shell and PowerShell installers, Cargo from the Git
-tag, or a source build. See the [installation guide](https://docs.agentbriefer.com/docs/installation).
+tag, or a source build. See the [installation guide](https://docsagentbriefer.vercel.app/docs/installation).
 
 ## Quick start
 
@@ -73,9 +73,9 @@ Agentbriefer-managed block; `generate` replaces the whole file.
 | `agentbriefer profile …` | List, create, and switch reusable developer profiles. |
 | `agentbriefer skill …` | Discover and manage project skills and reusable skill profiles. |
 
-Read the [full documentation](https://docs.agentbriefer.com/), browse the
-[examples](https://docs.agentbriefer.com/docs/examples/overview), or use the
-[command reference](https://docs.agentbriefer.com/docs/reference/commands).
+Read the [full documentation](https://docsagentbriefer.vercel.app/), browse the
+[examples](https://docsagentbriefer.vercel.app/docs/examples/overview), or use the
+[command reference](https://docsagentbriefer.vercel.app/docs/reference/commands).
 
 ## Development
 
@@ -87,7 +87,7 @@ cargo test --all-targets
 
 The versioned Docusaurus site lives in [`docs-site`](docs-site/README.md). Architecture details are in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and contribution setup is documented on the
-[contributor site](https://docs.agentbriefer.com/docs/contributing/development).
+[contributor site](https://docsagentbriefer.vercel.app/docs/contributing/development).
 
 ## Security and license
 
