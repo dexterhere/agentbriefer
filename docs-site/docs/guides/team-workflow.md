@@ -47,4 +47,11 @@ agentbriefer doctor
 git diff -- agentbriefer.yaml CLAUDE.md AGENTS.md .cursor .github
 ```
 
-Because doctor warnings do not fail the process, review its output explicitly.
+`agentbriefer doctor` exits non-zero when it finds drift (a missing or stale
+generated output), so this check fails the process on its own — you don't
+need to review its output manually to catch drift. Conflicting-settings,
+missing-field, and unknown-skill findings are still warnings that won't fail
+the command, so it's worth skimming the output for those.
+
+See [CI integration](./ci-integration.md) for running this same check as a
+required GitHub Actions job instead of a local pre-PR step.

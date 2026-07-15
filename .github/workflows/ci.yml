@@ -33,3 +33,15 @@ jobs:
 
       - name: Run tests
         run: cargo test
+
+  doctor:
+    name: agentbriefer doctor (dogfood)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run agentbriefer doctor
+        uses: ./.github/actions/doctor
