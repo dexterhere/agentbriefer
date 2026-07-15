@@ -8,9 +8,17 @@ description: >-
 
 inputs:
   version:
-    description: 'The agentbriefer npm package version to install (e.g. "1.0.0").'
+    description: 'The agentbriefer npm package version to install (e.g. "1.0.0"). Ignored if binary-path is set.'
     required: false
     default: '1.0.0'
+  binary-path:
+    description: >-
+      Path to a pre-built agentbriefer binary to use instead of installing
+      from npm. For testing this action against unreleased CLI changes
+      (e.g. this repository's own dogfooding CI job) — external consumers
+      should leave this unset and use the published, pinned `version`.
+    required: false
+    default: ''
   fix:
     description: >-
       Boolean-as-string. When 'true', runs `agentbriefer doctor --fix` to
@@ -31,10 +39,20 @@ runs:
       with:
         node-version: '20.x'
 
-    - name: Install agentbriefer
+    - name: Install agentbriefer from npm
+      if: inputs.binary-path == ''
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: npm install -g "agentbriefer@${{ inputs.version }}"
+
+    - name: Use pre-built agentbriefer binary
+      if: inputs.binary-path != ''
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/agentbriefer-bin"
+        cp "${{ inputs.binary-path }}" "$RUNNER_TEMP/agentbriefer-bin/agentbriefer"
+        chmod +x "$RUNNER_TEMP/agentbriefer-bin/agentbriefer"
+        echo "$RUNNER_TEMP/agentbriefer-bin" >> "$GITHUB_PATH"
 
     - name: Run agentbriefer doctor
       shell: bash
@@ -56,12 +74,18 @@ runs:
           const fs = require("fs");
 
           const path = "doctor-report.json";
-          if (!fs.existsSync(path)) {
-            console.log("No doctor-report.json found — the doctor step likely failed before producing output.");
+          if (!fs.existsSync(path) || fs.readFileSync(path, "utf8").trim() === "") {
+            console.log("No doctor-report.json output found — the doctor step likely failed before it could print a report (e.g. an install failure or a CLI version mismatch). Check the previous step's log.");
             process.exit(0);
           }
 
-          const report = JSON.parse(fs.readFileSync(path, "utf8"));
+          let report;
+          try {
+            report = JSON.parse(fs.readFileSync(path, "utf8"));
+          } catch (err) {
+            console.log(`doctor-report.json was not valid JSON (${err.message}) — check the previous step's log.`);
+            process.exit(0);
+          }
           const { summary, findings, clean } = report;
 
           const lines = [];

@@ -43,5 +43,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      # Builds from source rather than letting the action install the
+      # published npm package: this job is meant to dogfood the CLI as it
+      # exists on this branch (including unreleased flag changes), not the
+      # last published release.
+      - name: Build agentbriefer
+        run: cargo build --release
+
       - name: Run agentbriefer doctor
         uses: ./.github/actions/doctor
+        with:
+          binary-path: ${{ github.workspace }}/target/release/agentbriefer
