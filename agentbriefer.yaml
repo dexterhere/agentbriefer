@@ -1,0 +1,39 @@
+developer:
+  style: security-first
+  explanation_style: tradeoff-based
+project:
+  project_type: cli-tool
+  stack:
+    language: rust
+    package_manager: cargo
+    testing_tools:
+    - insta
+    key_dependencies:
+    - clap
+    - serde
+    - serde_yaml
+    - tera
+    - rust-embed
+  security_level: strict
+  testing_level: strict
+  dependency_policy: explain-first
+  architecture_style: simple-layered
+stop_rules:
+- Never commit API keys, tokens, or secrets to the repository.
+- Do not add a new crate dependency without explaining why it's needed and checking for a std-library or already-present alternative first.
+- Do not disable Clippy lints or bypass cargo fmt to silence a warning — fix the underlying issue.
+- Do not let generate and sync diverge in behavior — any change to one's write semantics must be reflected in both, per the safety boundaries in docs/ARCHITECTURE.md.
+- Do not add a runtime asset dependency — templates and skills must stay embedded via rust-embed, per docs/ARCHITECTURE.md's "no runtime asset dependency" guarantee.
+outputs:
+- claude-md
+- agents-md
+- cursor-rules
+- copilot-instructions
+custom_instructions: >-
+  This is the Agentbriefer Rust CLI itself (edition 2024, clap derive style). Pure subsystems
+  (src/config, src/detect, src/skills, src/render) must stay free of filesystem writes and
+  prompting — all real I/O and dialoguer prompts belong in src/cli. generate is an intentional
+  full overwrite; sync is the only path that preserves manual edits, via the
+  agentbriefer:managed:start/end markers. Any new output-writing code must call
+  refuse_if_symlink() first, matching the existing symlink-safety precedent in
+  src/cli/generate.rs. Follow existing module docs and #[cfg(test)] placement conventions.
