@@ -4,6 +4,18 @@ All notable changes to Agentbriefer are documented here. The project follows sem
 
 ## [Unreleased]
 
+### Added
+
+- `agentbriefer doctor --json` for machine-readable findings, and `agentbriefer doctor --fix` to
+  automatically resync missing/stale generated outputs.
+
+### Changed
+
+- **Breaking:** `agentbriefer doctor` now exits with a non-zero status when it reports any finding
+  classified as drift (a missing or stale generated output). Warnings about conflicting settings,
+  missing fields, or unknown skill ids do not affect the exit code. Pass `--no-fail` to restore the
+  previous always-exit-0 behavior.
+
 ## [1.0.0] - 2026-07-13
 
 ### Added

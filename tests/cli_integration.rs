@@ -118,11 +118,15 @@ fn doctor_flags_conflicting_security_and_dependency_settings() {
     )
     .unwrap();
 
+    // This project's outputs were never generated, so alongside the
+    // Warning-severity conflicting-settings finding this now also produces
+    // Error-severity output-missing findings for all 4 formats — doctor
+    // exits non-zero whenever any Error-severity finding is present.
     agentbriefer()
         .current_dir(dir.path())
         .arg("doctor")
         .assert()
-        .success()
+        .failure()
         .stdout(predicate::str::contains("dependency policy is 'allow'"));
 }
 
@@ -143,6 +147,108 @@ fn doctor_reports_no_issues_once_generated_and_in_sync() {
         .assert()
         .success()
         .stdout(predicate::str::contains("No issues found."));
+}
+
+#[test]
+fn doctor_exits_non_zero_when_a_configured_output_was_never_generated() {
+    let dir = tempdir().unwrap();
+    write_config(dir.path());
+
+    agentbriefer()
+        .current_dir(dir.path())
+        .arg("doctor")
+        .assert()
+        .failure()
+        .code(1);
+}
+
+#[test]
+fn doctor_no_fail_exits_zero_with_the_same_drift_present() {
+    let dir = tempdir().unwrap();
+    write_config(dir.path());
+
+    agentbriefer()
+        .current_dir(dir.path())
+        .args(["doctor", "--no-fail"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn doctor_fix_regenerates_missing_output_and_a_later_plain_doctor_is_clean() {
+    let dir = tempdir().unwrap();
+    write_config(dir.path());
+
+    agentbriefer()
+        .current_dir(dir.path())
+        .args(["doctor", "--fix"])
+        .assert()
+        .success();
+
+    agentbriefer()
+        .current_dir(dir.path())
+        .arg("doctor")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No issues found."));
+}
+
+#[test]
+fn doctor_json_on_a_warnings_only_project_emits_valid_json_and_exits_zero() {
+    let dir = tempdir().unwrap();
+    write_config(dir.path());
+
+    // Generate first so the only remaining finding is the Warning-severity
+    // unknown-skill one — this pins the "warnings alone don't fail" rule.
+    agentbriefer()
+        .current_dir(dir.path())
+        .arg("generate")
+        .assert()
+        .success();
+
+    let config = fs::read_to_string(dir.path().join("agentbriefer.yaml")).unwrap();
+    fs::write(
+        dir.path().join("agentbriefer.yaml"),
+        format!("{config}skills:\n- not-a-real-skill\n"),
+    )
+    .unwrap();
+
+    let output = agentbriefer()
+        .current_dir(dir.path())
+        .args(["doctor", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let stdout = String::from_utf8(output).unwrap();
+
+    let value: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|err| panic!("stdout was not valid JSON ({err}): {stdout}"));
+    assert_eq!(value["summary"]["total"], 1);
+    assert_eq!(value["clean"], false);
+}
+
+#[test]
+fn doctor_json_on_drift_exits_with_code_1_and_stdout_is_pure_json() {
+    let dir = tempdir().unwrap();
+    write_config(dir.path());
+
+    let output = agentbriefer()
+        .current_dir(dir.path())
+        .args(["doctor", "--json"])
+        .assert()
+        .failure()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let stdout = String::from_utf8(output).unwrap();
+
+    assert!(
+        serde_json::from_str::<serde_json::Value>(&stdout).is_ok(),
+        "stdout must be pure, parseable JSON with nothing extraneous: {stdout}"
+    );
 }
 
 #[test]
@@ -299,11 +405,14 @@ fn doctor_flags_a_configured_skill_id_that_is_no_longer_in_the_embedded_catalog(
     )
     .unwrap();
 
+    // This project's outputs were never generated, so alongside the
+    // Warning-severity unknown-skill finding this now also produces
+    // Error-severity output-missing findings for all 4 formats.
     agentbriefer()
         .current_dir(dir.path())
         .arg("doctor")
         .assert()
-        .success()
+        .failure()
         .stdout(predicate::str::contains("not-a-real-skill"))
         .stdout(predicate::str::contains("agentbriefer skill remove"));
 }

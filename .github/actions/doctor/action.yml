@@ -1,0 +1,112 @@
+name: agentbriefer doctor
+description: >-
+  Runs `agentbriefer doctor` against this repository's agentbriefer.yaml and
+  fails the job on drift (missing or stale generated instruction files).
+  Requires no secrets. The calling workflow only needs `permissions:
+  contents: read` — do not grant this action write access to the repository
+  or any broader token scope.
+
+inputs:
+  version:
+    description: 'The agentbriefer npm package version to install (e.g. "1.0.0"). Ignored if binary-path is set.'
+    required: false
+    default: '1.0.0'
+  binary-path:
+    description: >-
+      Path to a pre-built agentbriefer binary to use instead of installing
+      from npm. For testing this action against unreleased CLI changes
+      (e.g. this repository's own dogfooding CI job) — external consumers
+      should leave this unset and use the published, pinned `version`.
+    required: false
+    default: ''
+  fix:
+    description: >-
+      Boolean-as-string. When 'true', runs `agentbriefer doctor --fix` to
+      resync missing/stale outputs via the existing sync machinery before
+      reporting, instead of only reporting.
+    required: false
+    default: 'false'
+  working-directory:
+    description: 'Directory containing agentbriefer.yaml to run doctor against.'
+    required: false
+    default: '.'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: '20.x'
+
+    - name: Install agentbriefer from npm
+      if: inputs.binary-path == ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm install -g "agentbriefer@${{ inputs.version }}"
+
+    - name: Use pre-built agentbriefer binary
+      if: inputs.binary-path != ''
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/agentbriefer-bin"
+        cp "${{ inputs.binary-path }}" "$RUNNER_TEMP/agentbriefer-bin/agentbriefer"
+        chmod +x "$RUNNER_TEMP/agentbriefer-bin/agentbriefer"
+        echo "$RUNNER_TEMP/agentbriefer-bin" >> "$GITHUB_PATH"
+
+    - name: Run agentbriefer doctor
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -o pipefail
+        if [ "${{ inputs.fix }}" = "true" ]; then
+          agentbriefer doctor --fix --json | tee doctor-report.json
+        else
+          agentbriefer doctor --json | tee doctor-report.json
+        fi
+
+    - name: Summarize doctor report
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        node -e '
+          const fs = require("fs");
+
+          const path = "doctor-report.json";
+          if (!fs.existsSync(path) || fs.readFileSync(path, "utf8").trim() === "") {
+            console.log("No doctor-report.json output found — the doctor step likely failed before it could print a report (e.g. an install failure or a CLI version mismatch). Check the previous step's log.");
+            process.exit(0);
+          }
+
+          let report;
+          try {
+            report = JSON.parse(fs.readFileSync(path, "utf8"));
+          } catch (err) {
+            console.log(`doctor-report.json was not valid JSON (${err.message}) — check the previous step's log.`);
+            process.exit(0);
+          }
+          const { summary, findings, clean } = report;
+
+          const lines = [];
+          lines.push("## agentbriefer doctor report");
+          lines.push("");
+          lines.push(clean ? "Clean — no findings." : "**Findings detected.**");
+          lines.push("");
+          lines.push(`- Total: ${summary.total}`);
+          lines.push(`- Errors: ${summary.errors}`);
+          lines.push(`- Warnings: ${summary.warnings}`);
+          lines.push(`- Fixed: ${summary.fixed}`);
+          lines.push("");
+
+          if (findings.length > 0) {
+            lines.push("### Findings");
+            lines.push("");
+            for (const f of findings) {
+              const fixable = f.fixable ? " (fixable)" : "";
+              lines.push(`- **[${f.severity}]** \`${f.code}\`${fixable}: ${f.message}`);
+            }
+          }
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+        '

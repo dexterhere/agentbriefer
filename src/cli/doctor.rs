@@ -1,28 +1,113 @@
-//! `agentbriefer doctor` — a small, read-only linter over the current
-//! project's configuration and generated files.
+//! `agentbriefer doctor` — a small linter over the current project's
+//! configuration and generated files, with an optional `--fix` that
+//! resyncs drifted outputs and a `--json` mode for machine consumption.
 
 use std::fs;
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
+use serde::Serialize;
 
 use super::generate::output_path;
-use super::sync::{find_managed_block, managed_block};
+use super::sync::{self, find_managed_block, managed_block};
 use super::ui;
 use crate::config::{self, AgentbrieferConfig, DependencyPolicy, SecurityLevel, TestingLevel};
 use crate::render::Renderer;
 use crate::skills::SkillRegistry;
 use crate::textutil::split_frontmatter;
 
-/// Findings from a doctor pass. Kept as a flat list of human-readable
-/// strings — v1 doesn't need severity levels to be useful.
+/// How serious a [`Finding`] is. `Error`-severity findings are what drive
+/// `doctor`'s exit code (unless `--no-fail` is passed); `Warning`-severity
+/// findings are surfaced but never fail the command on their own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Severity {
+    Warning,
+    Error,
+}
+
+/// A single diagnostic emitted by a `check_*` function.
+#[derive(Debug, Clone, Serialize)]
+pub struct Finding {
+    pub code: &'static str,
+    pub severity: Severity,
+    pub message: String,
+    pub fixable: bool,
+}
+
+/// Findings from a doctor pass.
 #[derive(Debug, Default)]
 pub struct DoctorReport {
-    pub findings: Vec<String>,
+    pub findings: Vec<Finding>,
+}
+
+impl DoctorReport {
+    fn error_count(&self) -> usize {
+        self.findings
+            .iter()
+            .filter(|f| f.severity == Severity::Error)
+            .count()
+    }
+
+    fn warning_count(&self) -> usize {
+        self.findings
+            .iter()
+            .filter(|f| f.severity == Severity::Warning)
+            .count()
+    }
+
+    fn has_fixable(&self) -> bool {
+        self.findings.iter().any(|f| f.fixable)
+    }
+}
+
+/// JSON-serializable summary counts for a [`DoctorReport`].
+#[derive(Debug, Serialize)]
+pub struct Summary {
+    pub total: usize,
+    pub errors: usize,
+    pub warnings: usize,
+    pub fixed: usize,
+}
+
+/// The `--json` wrapper around a [`DoctorReport`]. Kept separate from
+/// `DoctorReport` (which stays the internal currency every check function
+/// writes into) so the on-disk JSON shape is independent of internal
+/// refactors.
+#[derive(Debug, Serialize)]
+pub struct DoctorReportJson {
+    pub schema_version: u32,
+    pub findings: Vec<Finding>,
+    pub summary: Summary,
+    pub clean: bool,
+}
+
+impl DoctorReportJson {
+    fn from_report(report: DoctorReport, fixed: usize) -> Self {
+        let errors = report.error_count();
+        let warnings = report.warning_count();
+        let total = report.findings.len();
+
+        DoctorReportJson {
+            schema_version: 1,
+            findings: report.findings,
+            summary: Summary {
+                total,
+                errors,
+                warnings,
+                fixed,
+            },
+            clean: total == 0,
+        }
+    }
 }
 
 /// Runs `agentbriefer doctor` in the current directory.
-pub fn run() -> Result<()> {
+///
+/// `fix` resyncs any drifted/missing output before reporting. `json` emits
+/// a [`DoctorReportJson`] document on stdout instead of the human-readable
+/// listing. `no_fail` always exits 0, regardless of findings.
+pub fn run(fix: bool, json: bool, no_fail: bool) -> Result<()> {
     let root = std::env::current_dir().context("failed to resolve the current directory")?;
     let config_path = root.join(config::CONFIG_FILE_NAME);
 
@@ -36,17 +121,74 @@ pub fn run() -> Result<()> {
     let renderer = Renderer::new().context("failed to initialize the template engine")?;
     let registry = SkillRegistry::load().context("failed to load the bundled skill catalog")?;
 
-    let report = doctor(&root, &config, &renderer, &registry)?;
+    let initial_report = doctor(&root, &config, &renderer, &registry)?;
+
+    let mut fixed = 0;
+    let report = if fix && initial_report.has_fixable() {
+        let initial_errors = initial_report.error_count();
+
+        let sync_report = fix_drift(&root, &config, &renderer)?;
+        for (format, path) in &sync_report.succeeded {
+            ui::success(&format!("synced {format} -> {}", path.display()));
+        }
+        for (format, reason) in &sync_report.failed {
+            ui::warn(&format!("skipped {format}: {reason}"));
+        }
+
+        let final_report = doctor(&root, &config, &renderer, &registry)?;
+        fixed = initial_errors.saturating_sub(final_report.error_count());
+        final_report
+    } else {
+        initial_report
+    };
+
+    if json {
+        let has_errors = report.error_count() > 0;
+        let report_json = DoctorReportJson::from_report(report, fixed);
+        println!("{}", serde_json::to_string_pretty(&report_json)?);
+
+        // `--no-fail`/exit-code handling happens via `process::exit` here
+        // rather than `anyhow::bail!`, because stdout must remain a single,
+        // valid JSON document for CI consumers to parse — an error printed
+        // to stderr by the normal `Result::Err` path doesn't affect stdout,
+        // but returning `Err` from `run` would still be fine functionally;
+        // we exit directly anyway to keep this branch's control flow
+        // self-contained and make the "stdout is pure JSON" guarantee
+        // obvious at the call site.
+        if !no_fail && has_errors {
+            std::process::exit(1);
+        }
+
+        return Ok(());
+    }
 
     if report.findings.is_empty() {
         ui::success("No issues found.");
     } else {
         for finding in &report.findings {
-            ui::warn(&format!("- {finding}"));
+            ui::warn(&format!("- {}", finding.message));
+        }
+    }
+
+    if !no_fail {
+        let errors = report.error_count();
+        if errors > 0 {
+            bail!("agentbriefer doctor found {errors} issue(s)");
         }
     }
 
     Ok(())
+}
+
+/// Resyncs every configured output. A thin call into [`sync::sync`] — the
+/// only write path `doctor --fix` gains; it never touches `config.skills`
+/// or anything under `.agentbriefer/skills/`.
+fn fix_drift(
+    root: &Path,
+    config: &AgentbrieferConfig,
+    renderer: &Renderer,
+) -> Result<super::generate::OutputReport> {
+    sync::sync(root, config, renderer)
 }
 
 /// Runs every check against `config` and the files under `root`. Kept
@@ -78,47 +220,64 @@ fn doctor(
 fn check_unknown_skill_ids(
     config: &AgentbrieferConfig,
     registry: &SkillRegistry,
-    findings: &mut Vec<String>,
+    findings: &mut Vec<Finding>,
 ) {
     for id in &config.skills {
         if !registry.contains(id) {
-            findings.push(format!(
-                "skill '{id}' is configured but not found in the bundled catalog — update \
-                 agentbriefer to a version that includes it, or remove it with \
-                 `agentbriefer skill remove {id}`."
-            ));
+            findings.push(Finding {
+                code: "unknown-skill",
+                severity: Severity::Warning,
+                message: format!(
+                    "skill '{id}' is configured but not found in the bundled catalog — update \
+                     agentbriefer to a version that includes it, or remove it with \
+                     `agentbriefer skill remove {id}`."
+                ),
+                fixable: false,
+            });
         }
     }
 }
 
-fn check_conflicting_settings(config: &AgentbrieferConfig, findings: &mut Vec<String>) {
+fn check_conflicting_settings(config: &AgentbrieferConfig, findings: &mut Vec<Finding>) {
     let project = &config.project;
 
     if project.dependency_policy == DependencyPolicy::Allow
         && project.security_level == SecurityLevel::Strict
     {
-        findings.push(
-            "dependency policy is 'allow' but security level is 'strict' — consider 'explain-first' or \
+        findings.push(Finding {
+            code: "conflicting-settings",
+            severity: Severity::Warning,
+            message: "dependency policy is 'allow' but security level is 'strict' — consider 'explain-first' or \
              'ask-first'."
                 .to_string(),
-        );
+            fixable: false,
+        });
     }
 
     if project.testing_level == TestingLevel::Light
         && project.security_level == SecurityLevel::Strict
     {
-        findings.push(
-            "testing level is 'light' but security level is 'strict' — consider a stricter testing level."
-                .to_string(),
-        );
+        findings.push(Finding {
+            code: "conflicting-settings",
+            severity: Severity::Warning,
+            message:
+                "testing level is 'light' but security level is 'strict' — consider a stricter testing level."
+                    .to_string(),
+            fixable: false,
+        });
     }
 }
 
-fn check_missing_fields(config: &AgentbrieferConfig, findings: &mut Vec<String>) {
+fn check_missing_fields(config: &AgentbrieferConfig, findings: &mut Vec<Finding>) {
     if config.project.stack.language.trim().is_empty() {
-        findings.push(
-            "project.stack.language is empty — edit agentbriefer.yaml or run `agentbriefer init` again.".to_string(),
-        );
+        findings.push(Finding {
+            code: "missing-field",
+            severity: Severity::Warning,
+            message:
+                "project.stack.language is empty — edit agentbriefer.yaml or run `agentbriefer init` again."
+                    .to_string(),
+            fixable: false,
+        });
     }
 }
 
@@ -126,16 +285,21 @@ fn check_generated_files(
     root: &Path,
     config: &AgentbrieferConfig,
     renderer: &Renderer,
-    findings: &mut Vec<String>,
+    findings: &mut Vec<Finding>,
 ) -> Result<()> {
     for &format in &config.outputs {
         let path = root.join(output_path(format));
 
         if !path.exists() {
-            findings.push(format!(
-                "{format} is configured but hasn't been generated yet — run `agentbriefer generate` or \
-                 `agentbriefer sync`."
-            ));
+            findings.push(Finding {
+                code: "output-missing",
+                severity: Severity::Error,
+                message: format!(
+                    "{format} is configured but hasn't been generated yet — run `agentbriefer generate` or \
+                     `agentbriefer sync`."
+                ),
+                fixable: true,
+            });
             continue;
         }
 
@@ -149,9 +313,14 @@ fn check_generated_files(
             .with_context(|| format!("failed to read {}", path.display()))?;
 
         if is_stale(&existing, &rendered) {
-            findings.push(format!(
-                "{format} is out of sync with the current configuration — run `agentbriefer sync` to update it."
-            ));
+            findings.push(Finding {
+                code: "output-stale",
+                severity: Severity::Error,
+                message: format!(
+                    "{format} is out of sync with the current configuration — run `agentbriefer sync` to update it."
+                ),
+                fixable: true,
+            });
         }
     }
 
@@ -220,7 +389,7 @@ mod tests {
         assert!(
             findings
                 .iter()
-                .any(|f| f.contains("dependency policy is 'allow'"))
+                .any(|f| f.message.contains("dependency policy is 'allow'"))
         );
     }
 
@@ -246,7 +415,7 @@ mod tests {
         assert!(
             findings
                 .iter()
-                .any(|f| f.contains("testing level is 'light'"))
+                .any(|f| f.message.contains("testing level is 'light'"))
         );
     }
 
@@ -261,7 +430,7 @@ mod tests {
         assert!(
             findings
                 .iter()
-                .any(|f| f.contains("project.stack.language is empty"))
+                .any(|f| f.message.contains("project.stack.language is empty"))
         );
     }
 
@@ -284,7 +453,7 @@ mod tests {
             report
                 .findings
                 .iter()
-                .any(|f| f.contains("hasn't been generated yet"))
+                .any(|f| f.message.contains("hasn't been generated yet"))
         );
     }
 
@@ -331,7 +500,12 @@ mod tests {
 
         let report = doctor(dir.path(), &config, &renderer, &registry).unwrap();
 
-        assert!(report.findings.iter().any(|f| f.contains("out of sync")));
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.message.contains("out of sync"))
+        );
     }
 
     #[test]
@@ -346,7 +520,8 @@ mod tests {
         assert!(
             findings
                 .iter()
-                .any(|f| f.contains("not-a-real-skill") && f.contains("skill remove"))
+                .any(|f| f.message.contains("not-a-real-skill")
+                    && f.message.contains("skill remove"))
         );
     }
 
@@ -366,5 +541,160 @@ mod tests {
         check_unknown_skill_ids(&config, &registry, &mut findings);
 
         assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn fix_resyncs_a_stale_output_and_a_second_doctor_pass_is_clean() {
+        let dir = tempfile::tempdir().unwrap();
+        let renderer = Renderer::new().unwrap();
+        let registry = SkillRegistry::load().unwrap();
+        let mut config = sample_config();
+        config.outputs = vec![OutputFormat::ClaudeMd];
+
+        fs::write(
+            dir.path().join("CLAUDE.md"),
+            managed_block("stale content from a previous config"),
+        )
+        .unwrap();
+
+        let before = doctor(dir.path(), &config, &renderer, &registry).unwrap();
+        assert!(
+            before.findings.iter().any(|f| f.code == "output-stale"),
+            "setup should have produced a stale finding: {:?}",
+            before.findings
+        );
+
+        fix_drift(dir.path(), &config, &renderer).unwrap();
+
+        let after = doctor(dir.path(), &config, &renderer, &registry).unwrap();
+        assert!(
+            after.findings.is_empty(),
+            "expected a clean report after fix: {:?}",
+            after.findings
+        );
+    }
+
+    #[test]
+    fn fix_does_not_touch_skills_or_delete_anything_under_agentbriefer_skills() {
+        let dir = tempfile::tempdir().unwrap();
+        let renderer = Renderer::new().unwrap();
+        let registry = SkillRegistry::load().unwrap();
+        let mut config = sample_config();
+        config.outputs = vec![OutputFormat::ClaudeMd];
+        // An id that doesn't resolve in the bundled catalog — this is the
+        // regression surface: `fix` must never react to an unknown-skill
+        // finding by touching `config.skills` or by deleting anything under
+        // `.agentbriefer/skills/`, since it only ever calls `sync::sync`.
+        config.skills = vec!["not-a-real-skill".to_string()];
+
+        // Simulate a materialized skills directory with content that would
+        // be considered "stale" by `materialize_skills`'s cleanup pass, to
+        // prove `fix` never runs anything resembling that pass.
+        let sentinel_dir = dir
+            .path()
+            .join(".agentbriefer")
+            .join("skills")
+            .join("some-other-id");
+        fs::create_dir_all(&sentinel_dir).unwrap();
+        fs::write(sentinel_dir.join("SKILL.md"), "sentinel content").unwrap();
+
+        let before_report = doctor(dir.path(), &config, &renderer, &registry).unwrap();
+        assert!(
+            before_report
+                .findings
+                .iter()
+                .any(|f| f.code == "unknown-skill"),
+            "setup should have produced an unknown-skill finding: {:?}",
+            before_report.findings
+        );
+
+        fix_drift(dir.path(), &config, &renderer).unwrap();
+
+        assert_eq!(
+            config.skills,
+            vec!["not-a-real-skill".to_string()],
+            "fix must never mutate config.skills"
+        );
+        assert!(
+            sentinel_dir.join("SKILL.md").exists(),
+            "fix must never delete anything under .agentbriefer/skills/"
+        );
+    }
+
+    #[test]
+    fn doctor_report_json_serializes_with_expected_shape() {
+        let report = DoctorReport {
+            findings: vec![Finding {
+                code: "unknown-skill",
+                severity: Severity::Warning,
+                message: "skill 'foo' is configured but not found".to_string(),
+                fixable: false,
+            }],
+        };
+
+        let json = DoctorReportJson::from_report(report, 0);
+
+        assert_eq!(json.schema_version, 1);
+        assert_eq!(json.summary.total, 1);
+        assert_eq!(json.summary.errors, 0);
+        assert_eq!(json.summary.warnings, 1);
+        assert_eq!(json.summary.fixed, 0);
+        assert!(!json.clean);
+
+        let value = serde_json::to_value(&json).unwrap();
+        assert_eq!(value["schema_version"], 1);
+        assert_eq!(value["summary"]["total"], 1);
+        assert_eq!(value["clean"], false);
+        assert_eq!(value["findings"][0]["code"], "unknown-skill");
+        assert_eq!(value["findings"][0]["severity"], "warning");
+    }
+
+    #[test]
+    fn severity_and_fixable_are_assigned_correctly_per_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let renderer = Renderer::new().unwrap();
+        let registry = SkillRegistry::load().unwrap();
+        let mut config = sample_config();
+        config.skills = vec!["not-a-real-skill".to_string()];
+        config.project.security_level = SecurityLevel::Strict;
+        config.project.dependency_policy = DependencyPolicy::Allow;
+        config.project.testing_level = TestingLevel::Light;
+        config.project.stack.language = "  ".to_string();
+        config.outputs = vec![OutputFormat::ClaudeMd];
+
+        let report = doctor(dir.path(), &config, &renderer, &registry).unwrap();
+
+        let error_fixable_codes = ["output-missing", "output-stale"];
+        let warning_non_fixable_codes = ["conflicting-settings", "missing-field", "unknown-skill"];
+
+        for finding in &report.findings {
+            if error_fixable_codes.contains(&finding.code) {
+                assert_eq!(
+                    finding.severity,
+                    Severity::Error,
+                    "{} should be Severity::Error",
+                    finding.code
+                );
+                assert!(finding.fixable, "{} should be fixable", finding.code);
+            } else if warning_non_fixable_codes.contains(&finding.code) {
+                assert_eq!(
+                    finding.severity,
+                    Severity::Warning,
+                    "{} should be Severity::Warning",
+                    finding.code
+                );
+                assert!(!finding.fixable, "{} should not be fixable", finding.code);
+            } else {
+                panic!("unexpected finding code: {}", finding.code);
+            }
+        }
+
+        // Sanity: make sure at least the warning codes we set up actually fired.
+        for code in warning_non_fixable_codes {
+            assert!(
+                report.findings.iter().any(|f| f.code == code),
+                "expected a `{code}` finding to have fired in this scenario"
+            );
+        }
     }
 }

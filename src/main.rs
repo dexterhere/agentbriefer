@@ -29,7 +29,17 @@ enum Commands {
     },
     /// Check the current project's configuration and generated files for
     /// conflicting settings, missing fields, and drift
-    Doctor,
+    Doctor {
+        /// Resync any missing or stale generated output before reporting
+        #[arg(long)]
+        fix: bool,
+        /// Emit machine-readable JSON findings instead of the human-readable listing
+        #[arg(long)]
+        json: bool,
+        /// Always exit 0, even when drift findings are present
+        #[arg(long)]
+        no_fail: bool,
+    },
     /// Manage this project's installed skills and reusable skill profiles
     Skill {
         #[command(subcommand)]
@@ -110,7 +120,9 @@ fn main() -> Result<()> {
             ProfileAction::Create => agentbriefer::cli::run_profile_create(),
             ProfileAction::Switch => agentbriefer::cli::run_profile_switch(),
         },
-        Commands::Doctor => agentbriefer::cli::run_doctor(),
+        Commands::Doctor { fix, json, no_fail } => {
+            agentbriefer::cli::run_doctor(fix, json, no_fail)
+        }
         Commands::Skill { action } => match action {
             SkillAction::List { role, recommended } => {
                 agentbriefer::cli::run_skill_list(role, recommended)

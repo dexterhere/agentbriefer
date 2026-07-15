@@ -27,12 +27,34 @@ outside it do not make the file stale.
 ## Findings and exit behavior
 
 Doctor prints warnings for every finding and `No issues found.` when clean.
-Findings currently do not produce a non-zero exit code.
+
+By default, `agentbriefer doctor` exits non-zero when it reports **drift** —
+a configured output that hasn't been generated yet, or a generated file that
+no longer matches a fresh render. Conflicting settings, missing fields, and
+unknown skill IDs are reported but do not affect the exit code on their own.
 
 ```bash
 agentbriefer doctor
-# Use the report for visibility; do not assume warnings fail the process.
+# Exits non-zero if any output is missing or stale. Safe to use as a CI gate.
 ```
+
+Two flags change this behavior:
+
+- `--fix` resyncs any missing or stale output (the same write path as
+  `agentbriefer sync`) before doctor reports, so a single run can repair and
+  then report a clean result.
+- `--no-fail` always exits `0`, regardless of findings — use it if you want
+  doctor's report without making it a blocking check.
+
+`--json` emits a machine-readable report instead of the human-readable
+listing, for scripting or CI summaries:
+
+```bash
+agentbriefer doctor --json
+```
+
+See [CI integration](./ci-integration.md) for wiring doctor into a pipeline
+as a blocking check.
 
 ## Maintenance cycle
 

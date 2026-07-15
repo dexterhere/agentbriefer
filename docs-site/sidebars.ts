@@ -20,6 +20,7 @@ const sidebars: SidebarsConfig = {
         'guides/skill-profiles',
         'guides/doctor-maintenance',
         'guides/team-workflow',
+        'guides/ci-integration',
       ],
     },
     {
